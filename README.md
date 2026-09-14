@@ -16,7 +16,7 @@ Plataforma que permite a proveedores de servicios (clínicas, consultorios, salo
 
 ## Sprint 1 — alcance
 
-- Definir agenda y horarios disponibles
+- **Definir agenda y horarios disponibles** implementada (entidades, repositorios, servicio, controlador, DTOs, excepciones y endpoint REST)
 - **Crear una reserva**  implementada (entidades, repositorios, servicio con reglas de negocio y endpoint REST)
 - Cancelar una reserva
 
@@ -73,6 +73,24 @@ Endpoint: `POST /api/reservas`
 - `404 Not Found` — el usuario o el horario indicado no existe.
 - `409 Conflict` — el horario ya tiene una reserva activa para esa fecha (evita doble reserva).
 
+
+## HU: Definir agenda y horarios disponibles
+
+Endpoint: `POST /api/agendas/{agendaId}/horarios`
+
+**Request body:**
+```json
+{
+  "diaSemana": 1,
+  "horaInicio": "08:00:00",
+  "horaFin": "12:00:00",
+  "duracionSlotMin": 30
+}
+```
+**Respuestas:**
+- `200 OK` — bloque de disponibilidad guardado exitosamente.
+- `400 Bad Request` — el horario se solapa con uno existente o el rango de horas es inválido.
+- `404 Not Found` — la agenda indicada no existe.
 ## Estructura del repositorio
 
 ```
@@ -87,7 +105,7 @@ plataforma-reservas/
         │   │   ├── usuarios/       (model, repository)
         │   │   ├── proveedores/    (model)
         │   │   ├── recursos/      (model)
-        │   │   ├── agendas/        (model: Agenda, HorarioDisponible — repository)
+        │   │   ├── agendas/        (model: Agenda, HorarioDisponible — repository, service, controller, dto, exception)
         │   │   └── reservas/       (model, repository, service, controller, dto, exception)
         │   └── resources/
         │       ├── application.properties

@@ -1,0 +1,10 @@
+### Crear horario para HU3
+POST http://localhost:8080/api/agendas/1/horarios
+Content-Type: application/json
+
+{
+  "diaSemana": 5,
+  "horaInicio": "12:00:00",
+  "horaFin": "14:00:00",
+  "duracionSlotMin": 30
+}
