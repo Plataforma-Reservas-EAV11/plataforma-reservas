@@ -22,7 +22,7 @@ jobs:
           java-version: 21
           distribution: 'zulu' # Alternative distribution options are available.
       - name: Cache SonarQube packages
-        uses: actions/actions/cache@v4 
+        uses: actions/cache@v4 
         with:
           path: |
             ~/.m2/repository
