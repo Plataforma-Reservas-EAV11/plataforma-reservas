@@ -65,4 +65,27 @@ public class ReservaService {
 
         return reservaRepository.save(reserva);
     }
+
+    @Transactional
+    public Reserva cancelarReserva(Integer reservaId, Integer usuarioId) {
+        Reserva reserva = reservaRepository.findById(reservaId)
+                .orElseThrow(() -> new ReservaException("La reserva no existe.", HttpStatus.NOT_FOUND));
+
+        if (!"activa".equalsIgnoreCase(reserva.getEstado())) {
+            if ("cancelada".equalsIgnoreCase(reserva.getEstado())) {
+                throw new ReservaException("La reserva ya está cancelada.", HttpStatus.BAD_REQUEST);
+            }
+            if ("completada".equalsIgnoreCase(reserva.getEstado())) {
+                throw new ReservaException("La reserva ya fue completada y no puede cancelarse.", HttpStatus.BAD_REQUEST);
+            }
+            throw new ReservaException("La reserva no está activa.", HttpStatus.BAD_REQUEST);
+        }
+
+        if (!reserva.getUsuario().getId().equals(usuarioId)) {
+            throw new ReservaException("No puedes cancelar una reserva que no te pertenece.", HttpStatus.FORBIDDEN);
+        }
+
+        reserva.setEstado("cancelada");
+        return reservaRepository.save(reserva);
+    }
 }
