@@ -33,6 +33,7 @@ jobs:
       - name: Build, test and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: >
           mvn -B verify
           org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
