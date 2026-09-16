@@ -28,6 +28,17 @@
     </scm>
     <properties>
         <java.version>17</java.version>
+        <sonar.organization>plataforma-reservas-eav11</sonar.organization>
+        <sonar.projectKey>Plataforma-Reservas-EAV11_plataforma-reservas</sonar.projectKey>
+        <sonar.projectName>plataforma-reservas</sonar.projectName>
+        <sonar.sources>src/main/java</sonar.sources>
+        <sonar.tests>src/test/java</sonar.tests>
+        <sonar.sourceEncoding>UTF-8</sonar.sourceEncoding>
+        <sonar.exclusions>**/node_modules/**,**/dist/**,**/*.min.js</sonar.exclusions>
+        <sonar.coverage.exclusions>**/*.test.*,**/tests/**</sonar.coverage.exclusions>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
+        <sonar.coverage.jacoco.xmlReportPaths>
+          target/site/jacoco/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
     <dependencies>
         <dependency>
@@ -115,6 +126,17 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+              <groupId>org.jacoco</groupId>
+              <artifactId>jacoco-maven-plugin</artifactId>
+              <version>0.8.12</version>
+              <executions>
+                <execution><id>prepare</id>
+                  <goals><goal>prepare-agent</goal></goals></execution>
+                <execution><id>report</id><phase>verify</phase>
+                  <goals><goal>report</goal></goals></execution>
+              </executions>
             </plugin>
         </plugins>
     </build>
