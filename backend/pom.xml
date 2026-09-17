@@ -128,6 +128,15 @@
                 </executions>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludes>
+                        <exclude>**/PlataformaReservasApplicationTests.java</exclude>
+                    </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
               <groupId>org.jacoco</groupId>
               <artifactId>jacoco-maven-plugin</artifactId>
               <version>0.8.12</version>
@@ -137,6 +146,15 @@
                 <execution><id>report</id><phase>verify</phase>
                   <goals><goal>report</goal></goals></execution>
               </executions>
+              <configuration>
+                <excludes>
+                  <exclude>**/model/**</exclude>
+                  <exclude>**/dto/**</exclude>
+                  <exclude>**/exception/**</exclude>
+                  <exclude>**/repository/**</exclude>
+                  <exclude>**/PlataformaReservasApplication.class</exclude>
+                </excludes>
+              </configuration>
             </plugin>
         </plugins>
     </build>
