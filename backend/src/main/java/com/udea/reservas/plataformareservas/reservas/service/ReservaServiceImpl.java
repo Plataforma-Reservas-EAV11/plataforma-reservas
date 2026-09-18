@@ -1,12 +1,12 @@
 package com.udea.reservas.plataformareservas.reservas.service;
 
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
-import com.udea.reservas.plataformareservas.agendas.repository.HorarioDisponibleRepository;
+import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
-import com.udea.reservas.plataformareservas.reservas.repository.ReservaRepository;
+import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
 import com.udea.reservas.plataformareservas.usuarios.model.Usuario;
-import com.udea.reservas.plataformareservas.usuarios.repository.UsuarioRepository;
+import com.udea.reservas.plataformareservas.usuarios.repository.IUsuarioRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -21,13 +21,13 @@ import org.springframework.transaction.annotation.Transactional;
 public class ReservaServiceImpl implements ReservaService {
 
     @Autowired
-    private final ReservaRepository reservaRepository;
+    private final IReservaRepository reservaRepository;
 
     @Autowired
-    private final UsuarioRepository usuarioRepository;
+    private final IUsuarioRepository usuarioRepository;
 
     @Autowired
-    private final HorarioDisponibleRepository horarioDisponibleRepository;
+    private final IHorarioDisponibleRepository horarioDisponibleRepository;
 
     @Override
     @Transactional

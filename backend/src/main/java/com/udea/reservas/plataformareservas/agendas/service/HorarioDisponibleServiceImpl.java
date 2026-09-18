@@ -5,8 +5,8 @@ import com.udea.reservas.plataformareservas.agendas.dto.HorarioResponse;
 import com.udea.reservas.plataformareservas.agendas.exception.AgendaException;
 import com.udea.reservas.plataformareservas.agendas.model.Agenda;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
-import com.udea.reservas.plataformareservas.agendas.repository.AgendaRepository;
-import com.udea.reservas.plataformareservas.agendas.repository.HorarioDisponibleRepository;
+import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
+import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -14,10 +14,10 @@ import org.springframework.stereotype.Service;
 public class HorarioDisponibleServiceImpl implements HorarioDisponibleService {
 
     @Autowired
-    private HorarioDisponibleRepository horarioRepository;
+    private IHorarioDisponibleRepository horarioRepository;
 
     @Autowired
-    private AgendaRepository agendaRepository;
+    private IAgendaRepository agendaRepository;
 
     @Override
     public HorarioResponse crearHorario(
