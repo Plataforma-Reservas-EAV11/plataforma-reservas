@@ -2,7 +2,7 @@ package com.udea.reservas.plataformareservas.agendas.service;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -82,7 +82,7 @@ public class HorarioDisponibleServiceTest {
             .duracionSlotMin(90)
             .build();
 
-        when(agendaRepository.findById(anyInt())).thenReturn(
+        when(agendaRepository.findById(agenda.getId())).thenReturn(
             Optional.of(agenda)
         );
         when(
@@ -111,11 +111,11 @@ public class HorarioDisponibleServiceTest {
                 HorarioResponse::duracionSlotMin
             )
             .containsExactly(
-                resultado.agendaId(),
-                resultado.diaSemana(),
-                resultado.horaInicio(),
-                resultado.horaFin(),
-                resultado.duracionSlotMin()
+                agenda.getId(),
+                request.diaSemana(),
+                request.horaInicio(),
+                request.horaFin(),
+                request.duracionSlotMin()
             );
 
         verify(horarioDisponibleRepository).save(any(HorarioDisponible.class));
@@ -131,7 +131,7 @@ public class HorarioDisponibleServiceTest {
             90
         );
 
-        when(agendaRepository.findById(anyInt())).thenReturn(Optional.empty());
+        when(agendaRepository.findById(7)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() ->
             horarioDisponibleService.crearHorario(7, request)
@@ -140,5 +140,6 @@ public class HorarioDisponibleServiceTest {
             .hasMessage("La agenda con ID " + 7 + " no existe.");
 
         verify(agendaRepository).findById(7);
+        verify(horarioDisponibleRepository, never()).save(any());
     }
 }

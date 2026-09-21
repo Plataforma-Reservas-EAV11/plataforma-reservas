@@ -3,16 +3,16 @@ package com.udea.reservas.plataformareservas.agendas.controller;
 import com.udea.reservas.plataformareservas.agendas.dto.CrearHorarioRequest;
 import com.udea.reservas.plataformareservas.agendas.dto.HorarioResponse;
 import com.udea.reservas.plataformareservas.agendas.service.HorarioDisponibleService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/agendas")
+@RequiredArgsConstructor
 public class HorarioDisponibleController {
 
-    @Autowired
-    private HorarioDisponibleService service;
+    private final HorarioDisponibleService service;
 
     @PostMapping("/{agendaId}/horarios")
     public ResponseEntity<HorarioResponse> agregarHorario(
