@@ -1,6 +1,5 @@
 package com.udea.reservas.plataformareservas.reservas.controller;
 
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -200,10 +199,10 @@ class ReservaControllerTest {
             .andExpect(status().isBadRequest());
 
         verify(reservaService, never()).crearReserva(
-            eq(null),
-            eq(null),
-            eq(null),
-            eq(null)
+            null,
+            null,
+            null,
+            null
         );
     }
 

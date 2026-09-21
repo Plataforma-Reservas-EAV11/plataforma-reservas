@@ -120,6 +120,8 @@ class ReservaServiceTest {
         // Arrange
         Usuario usuario = crearUsuario(1);
         HorarioDisponible horario = crearHorario(false);
+        LocalDate fecha = LocalDate.of(2099, 1, 1);
+        LocalTime hora = LocalTime.of(10, 30);
         when(usuarioRepository.findById(1)).thenReturn(Optional.of(usuario));
         when(horarioDisponibleRepository.findById(10)).thenReturn(
             Optional.of(horario)
@@ -127,12 +129,7 @@ class ReservaServiceTest {
 
         // Act
         ReservaException exception = assertThrows(ReservaException.class, () ->
-            reservaServiceImpl.crearReserva(
-                1,
-                10,
-                LocalDate.of(2099, 1, 1),
-                LocalTime.of(10, 30)
-            )
+            reservaServiceImpl.crearReserva(1, 10, fecha, hora)
         );
 
         // Assert
@@ -148,15 +145,12 @@ class ReservaServiceTest {
     void crearReservaConFechaPasadaDebeFallar() {
         // Arrange
         prepararDatosReservaValida();
+        LocalDate fecha = LocalDate.of(2000, 1, 1);
+        LocalTime hora = LocalTime.of(10, 30);
 
         // Act
         ReservaException exception = assertThrows(ReservaException.class, () ->
-            reservaServiceImpl.crearReserva(
-                1,
-                10,
-                LocalDate.of(2000, 1, 1),
-                LocalTime.of(10, 30)
-            )
+            reservaServiceImpl.crearReserva(1, 10, fecha, hora)
         );
 
         // Assert
@@ -172,15 +166,12 @@ class ReservaServiceTest {
     void crearReservaAntesDelInicioDebeFallar() {
         // Arrange
         prepararDatosReservaValida();
+        LocalDate fecha = LocalDate.of(2099, 1, 1);
+        LocalTime hora = LocalTime.of(9, 59);
 
         // Act
         ReservaException exception = assertThrows(ReservaException.class, () ->
-            reservaServiceImpl.crearReserva(
-                1,
-                10,
-                LocalDate.of(2099, 1, 1),
-                LocalTime.of(9, 59)
-            )
+            reservaServiceImpl.crearReserva(1, 10, fecha, hora)
         );
 
         // Assert
@@ -196,15 +187,12 @@ class ReservaServiceTest {
     void crearReservaIgualAlFinDebeFallar() {
         // Arrange
         prepararDatosReservaValida();
+        LocalDate fecha = LocalDate.of(2099, 1, 1);
+        LocalTime hora = LocalTime.of(12, 0);
 
         // Act
         ReservaException exception = assertThrows(ReservaException.class, () ->
-            reservaServiceImpl.crearReserva(
-                1,
-                10,
-                LocalDate.of(2099, 1, 1),
-                LocalTime.of(12, 0)
-            )
+            reservaServiceImpl.crearReserva(1, 10, fecha, hora)
         );
 
         // Assert
@@ -220,15 +208,12 @@ class ReservaServiceTest {
     void crearReservaDespuesDelFinDebeFallar() {
         // Arrange
         prepararDatosReservaValida();
+        LocalDate fecha = LocalDate.of(2099, 1, 1);
+        LocalTime hora = LocalTime.of(12, 1);
 
         // Act
         ReservaException exception = assertThrows(ReservaException.class, () ->
-            reservaServiceImpl.crearReserva(
-                1,
-                10,
-                LocalDate.of(2099, 1, 1),
-                LocalTime.of(12, 1)
-            )
+            reservaServiceImpl.crearReserva(1, 10, fecha, hora)
         );
 
         // Assert
@@ -244,6 +229,7 @@ class ReservaServiceTest {
     void crearReservaConHorarioOcupadoDebeFallar() {
         // Arrange
         LocalDate fecha = LocalDate.of(2099, 1, 1);
+        LocalTime hora = LocalTime.of(10, 30);
         prepararDatosReservaValida();
         when(
             reservaRepository.existsByHorario_IdAndFechaAndEstado(
@@ -255,7 +241,7 @@ class ReservaServiceTest {
 
         // Act
         ReservaException exception = assertThrows(ReservaException.class, () ->
-            reservaServiceImpl.crearReserva(1, 10, fecha, LocalTime.of(10, 30))
+            reservaServiceImpl.crearReserva(1, 10, fecha, hora)
         );
 
         // Assert
