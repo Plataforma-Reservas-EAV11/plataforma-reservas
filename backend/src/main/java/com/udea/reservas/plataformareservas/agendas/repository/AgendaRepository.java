@@ -1,7 +1,6 @@
 package com.udea.reservas.plataformareservas.agendas.repository;
 
-import com.udea.reservas.plataformareservas.agendas.model.Agenda;
-import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-public interface AgendaRepository extends JpaRepository<Agenda, Integer> {
-}
+@Repository
+public interface AgendaRepository extends IAgendaRepository {}

@@ -1,7 +1,3 @@
 package com.udea.reservas.plataformareservas.usuarios.repository;
 
-import com.udea.reservas.plataformareservas.usuarios.model.Usuario;
-import org.springframework.data.jpa.repository.JpaRepository;
-
-public interface UsuarioRepository extends JpaRepository<Usuario, Integer> {
-}
+public interface UsuarioRepository extends IUsuarioRepository {}
