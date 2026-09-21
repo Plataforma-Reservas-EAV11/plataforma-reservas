@@ -7,17 +7,16 @@ import com.udea.reservas.plataformareservas.agendas.model.Agenda;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
 import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 @Service
+@RequiredArgsConstructor
 public class HorarioDisponibleServiceImpl implements HorarioDisponibleService {
 
-    @Autowired
-    private IHorarioDisponibleRepository horarioRepository;
+    private final IHorarioDisponibleRepository horarioRepository;
 
-    @Autowired
-    private IAgendaRepository agendaRepository;
+    private final IAgendaRepository agendaRepository;
 
     @Override
     public HorarioResponse crearHorario(

@@ -11,7 +11,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,13 +19,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class ReservaServiceImpl implements ReservaService {
 
-    @Autowired
+    private static final String ESTADO_ACTIVA = "activa";
+
     private final IReservaRepository reservaRepository;
 
-    @Autowired
     private final IUsuarioRepository usuarioRepository;
 
-    @Autowired
     private final IHorarioDisponibleRepository horarioDisponibleRepository;
 
     @Override
@@ -88,7 +86,7 @@ public class ReservaServiceImpl implements ReservaService {
             reservaRepository.existsByHorario_IdAndFechaAndEstado(
                 horarioId,
                 fecha,
-                "activa"
+                ESTADO_ACTIVA
             );
         if (yaOcupado) {
             throw new ReservaException(
@@ -102,7 +100,7 @@ public class ReservaServiceImpl implements ReservaService {
             .horario(horario)
             .fecha(fecha)
             .hora(hora)
-            .estado("activa")
+            .estado(ESTADO_ACTIVA)
             .build();
 
         return reservaRepository.save(reserva);
@@ -120,7 +118,7 @@ public class ReservaServiceImpl implements ReservaService {
                 )
             );
 
-        if (!"activa".equalsIgnoreCase(reserva.getEstado())) {
+        if (!ESTADO_ACTIVA.equalsIgnoreCase(reserva.getEstado())) {
             if ("cancelada".equalsIgnoreCase(reserva.getEstado())) {
                 throw new ReservaException(
                     "La reserva ya está cancelada.",
