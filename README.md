@@ -144,3 +144,25 @@ plataforma-reservas/
 ## Contexto académico
 
 CodeF@ctory — Fábrica-Escuela, Universidad de Antioquia. Caso 14: Plataforma de Reservas de Servicios.
+
+## Pruebas unitarias
+
+Se agregaron pruebas unitarias para validar la lógica de negocio y el comportamiento de los controladores principales de la plataforma. Las pruebas utilizan JUnit 5, Mockito, AssertJ y MockMvc.
+
+La cobertura de las pruebas incluye:
+
+- Creación de reservas con datos válidos.
+- Validación de agendas inexistentes o inactivas y de horarios fuera de rango o ya reservados.
+- Validación de fechas y horas fuera del rango permitido o ya pasadas.
+- Prevención de reservas duplicadas para un mismo horario y fecha.
+- Cancelación de reservas activas y validación de permisos y estados de la reserva.
+- Respuestas HTTP exitosas y manejo de errores en los endpoints de reservas.
+- Creación de horarios disponibles y validación de solicitudes inválidas.
+- Verificación de la carga del contexto principal de la aplicación.
+
+### Equipo QA
+
+- BETANCUR ISAZA XIOMARA
+- GARCÉS PÉREZ ESTEFANÍA
+- PABON ROLDÁN ANDRÉS EDUARDO
+- ZULUAGA JARAMILLO DUBAN ESNEIDER
