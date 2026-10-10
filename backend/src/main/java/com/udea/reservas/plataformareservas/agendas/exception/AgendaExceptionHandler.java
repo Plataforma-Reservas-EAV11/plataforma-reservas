@@ -1,8 +1,11 @@
 package com.udea.reservas.plataformareservas.agendas.exception;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class AgendaExceptionHandler {
@@ -10,6 +13,20 @@ public class AgendaExceptionHandler {
     @ExceptionHandler(AgendaException.class)
     public ResponseEntity<String> manejarAgendaException(AgendaException ex) {
         return ResponseEntity.status(404).body(ex.getMessage());
+    }
+
+    // Devuelve HTTP 405 en lugar de 500 cuando el método HTTP no está soportado
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<String> manejarMetodoNoSoportado(HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body("El método HTTP '" + ex.getMethod() + "' no está soportado para este recurso.");
+    }
+
+    // Devuelve HTTP 404 en lugar de 500 cuando el recurso o endpoint no existe
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<String> manejarRecursoNoEncontrado(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body("El recurso solicitado no existe: " + ex.getResourcePath());
     }
 
     @ExceptionHandler(Exception.class)
