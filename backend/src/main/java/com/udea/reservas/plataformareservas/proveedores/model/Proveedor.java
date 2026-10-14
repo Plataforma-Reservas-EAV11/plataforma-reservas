@@ -1,6 +1,6 @@
 package com.udea.reservas.plataformareservas.proveedores.model;
 
-import com.udea.reservas.plataformareservas.usuarios.model.Usuario;
+import com.udea.reservas.plataformareservas.usuarios.model.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,7 +23,7 @@ public class Proveedor {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
-    private Usuario usuario;
+    private User usuario;
 
     @Column(name = "nombre_negocio", nullable = false, length = 150)
     private String nombreNegocio;

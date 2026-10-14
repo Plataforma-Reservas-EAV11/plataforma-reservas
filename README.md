@@ -16,8 +16,9 @@ Plataforma que permite a proveedores de servicios (clínicas, consultorios, salo
 
 ## Sprint 1 — alcance
 
+- **Registrarse en la plataforma** implementada (registro, validaciones y almacenamiento seguro de contraseña)
 - **Definir agenda y horarios disponibles** implementada (entidades, repositorios, servicio, controlador, DTOs, excepciones y endpoint REST)
-- **Crear una reserva**  implementada (entidades, repositorios, servicio con reglas de negocio y endpoint REST)
+- **Crear una reserva** implementada (entidades, repositorios, servicio con reglas de negocio y endpoint REST)
 - Cancelar una reserva
 
 ## Arquitectura
@@ -46,12 +47,40 @@ Monolito modular: un único backend Spring Boot, con un solo despliegue y una so
 | Spring Data JPA | `spring-boot-starter-data-jpa` | Persistencia ORM |
 | PostgreSQL Driver | `org.postgresql:postgresql` | Conexión a la base de datos |
 | Validation | `spring-boot-starter-validation` | Validación de payloads de entrada (`@NotNull`, `@Valid`) |
+| Spring Security Crypto | `org.springframework.security:spring-security-crypto` | Cifrar contraseñas con BCrypt sin activar filtros de autenticación |
 | Lombok | `org.projectlombok:lombok` | Reducir código repetitivo (getters/setters/constructores) |
 | Spring Boot Actuator | `spring-boot-starter-actuator` | Endpoint de salud `/actuator/health` |
 
 > Las versiones de estas dependencias las administra el Spring Boot Parent POM (4.1.1); no se fijan manualmente, para garantizar compatibilidad entre ellas.
 
-**Pendiente para próximos sprints:** Spring Security (HU de autenticación y roles, ubicada en el Sprint 2).
+## HU: Registrarse en la plataforma
+
+Endpoint: `POST /api/v1/auth/register`
+
+**Request body:**
+```json
+{
+  "name": "Ana Pérez",
+  "email": "ana@example.com",
+  "password": "una-clave-segura",
+  "confirmPassword": "una-clave-segura"
+}
+```
+
+**Respuestas:**
+- `201 Created` — cuenta creada. La contraseña se guarda cifrada con BCrypt y nunca se devuelve en la respuesta.
+- `400 Bad Request` — faltan campos obligatorios, el correo no es válido o las contraseñas no coinciden.
+- `409 Conflict` — el correo electrónico ya está registrado.
+
+Las respuestas siguen el formato:
+```json
+{
+  "success": true,
+  "message": "Registro exitoso. Tu cuenta fue creada.",
+  "errors": {}
+}
+```
+En caso de validación fallida, `errors` incluye los mensajes por campo. No se almacena la confirmación de contraseña.
 
 ## HU: Crear reserva
 

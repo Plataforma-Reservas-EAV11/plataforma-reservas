@@ -11,8 +11,8 @@ import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibl
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
-import com.udea.reservas.plataformareservas.usuarios.model.Usuario;
-import com.udea.reservas.plataformareservas.usuarios.repository.IUsuarioRepository;
+import com.udea.reservas.plataformareservas.usuarios.model.User;
+import com.udea.reservas.plataformareservas.usuarios.repository.UserRepository;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Optional;
@@ -31,7 +31,7 @@ class ReservaServiceTest {
     private IReservaRepository reservaRepository;
 
     @Mock
-    private IUsuarioRepository usuarioRepository;
+    private UserRepository usuarioRepository;
 
     @Mock
     private IHorarioDisponibleRepository horarioDisponibleRepository;
@@ -43,7 +43,7 @@ class ReservaServiceTest {
     @DisplayName("Crea una reserva y guarda la entidad cuando los datos son válidos")
     void crearReservaValidaGuardaReserva() {
         // Arrange
-        Usuario usuario = crearUsuario(1);
+        User usuario = crearUsuario(1);
         HorarioDisponible horario = crearHorario(true);
         LocalDate fecha = LocalDate.of(2099, 1, 1);
         LocalTime hora = LocalTime.of(10, 30);
@@ -118,7 +118,7 @@ class ReservaServiceTest {
     @DisplayName("Rechaza crear una reserva si la agenda está inactiva")
     void crearReservaConAgendaInactivaDebeFallar() {
         // Arrange
-        Usuario usuario = crearUsuario(1);
+        User usuario = crearUsuario(1);
         HorarioDisponible horario = crearHorario(false);
         LocalDate fecha = LocalDate.of(2099, 1, 1);
         LocalTime hora = LocalTime.of(10, 30);
@@ -257,12 +257,12 @@ class ReservaServiceTest {
     @DisplayName("Cancela una reserva activa de su propietario")
     void cancelarReservaActivaDeberiaActualizarEstado() {
         // Arrange
-        Usuario usuario = new Usuario();
+        User usuario = new User();
         usuario.setId(1);
-        usuario.setNombre("Ana");
+        usuario.setName("Ana");
         usuario.setEmail("ana@test.com");
         usuario.setPasswordHash("hash");
-        usuario.setRol("cliente");
+        usuario.setRole("cliente");
 
         HorarioDisponible horario = new HorarioDisponible();
         horario.setId(10);
@@ -293,7 +293,7 @@ class ReservaServiceTest {
     @DisplayName("Rechaza cancelar una reserva de otro usuario")
     void cancelarReservaDeOtroUsuarioDebeFallar() {
         // Arrange
-        Usuario usuario = new Usuario();
+        User usuario = new User();
         usuario.setId(1);
 
         Reserva reserva = Reserva.builder()
@@ -324,7 +324,7 @@ class ReservaServiceTest {
     @DisplayName("Rechaza cancelar una reserva ya cancelada")
     void cancelarReservaYaCanceladaDebeFallar() {
         // Arrange
-        Usuario usuario = new Usuario();
+        User usuario = new User();
         usuario.setId(1);
 
         Reserva reserva = Reserva.builder()
@@ -352,7 +352,7 @@ class ReservaServiceTest {
     @DisplayName("Rechaza cancelar una reserva completada")
     void cancelarReservaCompletadaDebeFallar() {
         // Arrange
-        Usuario usuario = new Usuario();
+        User usuario = new User();
         usuario.setId(1);
 
         Reserva reserva = Reserva.builder()
@@ -388,13 +388,13 @@ class ReservaServiceTest {
         );
     }
 
-    private Usuario crearUsuario(int usuarioId) {
-        Usuario usuario = new Usuario();
+    private User crearUsuario(int usuarioId) {
+        User usuario = new User();
         usuario.setId(usuarioId);
-        usuario.setNombre("Ana");
+        usuario.setName("Ana");
         usuario.setEmail("ana@test.com");
         usuario.setPasswordHash("hash");
-        usuario.setRol("cliente");
+        usuario.setRole("cliente");
         return usuario;
     }
 
