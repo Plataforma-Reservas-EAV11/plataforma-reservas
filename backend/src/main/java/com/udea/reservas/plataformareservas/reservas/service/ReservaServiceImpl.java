@@ -5,8 +5,8 @@ import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibl
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
-import com.udea.reservas.plataformareservas.usuarios.model.Usuario;
-import com.udea.reservas.plataformareservas.usuarios.repository.IUsuarioRepository;
+import com.udea.reservas.plataformareservas.usuarios.model.User;
+import com.udea.reservas.plataformareservas.usuarios.repository.UserRepository;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -23,7 +23,7 @@ public class ReservaServiceImpl implements ReservaService {
 
     private final IReservaRepository reservaRepository;
 
-    private final IUsuarioRepository usuarioRepository;
+    private final UserRepository usuarioRepository;
 
     private final IHorarioDisponibleRepository horarioDisponibleRepository;
 
@@ -35,7 +35,7 @@ public class ReservaServiceImpl implements ReservaService {
         LocalDate fecha,
         LocalTime hora
     ) {
-        Usuario usuario = usuarioRepository
+        User usuario = usuarioRepository
             .findById(usuarioId)
             .orElseThrow(() ->
                 new ReservaException(
@@ -83,14 +83,15 @@ public class ReservaServiceImpl implements ReservaService {
 
         // Regla: evitar doble reserva sobre el mismo horario y fecha
         boolean yaOcupado =
-            reservaRepository.existsByHorario_IdAndFechaAndEstado(
+            reservaRepository.existsByHorario_IdAndFechaAndHoraAndEstadoIgnoreCase(
                 horarioId,
                 fecha,
+                hora,
                 ESTADO_ACTIVA
             );
         if (yaOcupado) {
             throw new ReservaException(
-                "Este horario ya está reservado para esa fecha.",
+                "El recurso no está disponible en la fecha y hora seleccionadas.",
                 HttpStatus.CONFLICT
             );
         }

@@ -1,7 +1,7 @@
 package com.udea.reservas.plataformareservas.reservas.model;
 
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
-import com.udea.reservas.plataformareservas.usuarios.model.Usuario;
+import com.udea.reservas.plataformareservas.usuarios.model.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,7 +28,7 @@ public class Reserva {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)
-    private Usuario usuario;
+    private User usuario;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "horario_id", nullable = false)

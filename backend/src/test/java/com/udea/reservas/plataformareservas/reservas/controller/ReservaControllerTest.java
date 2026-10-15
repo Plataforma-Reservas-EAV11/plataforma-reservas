@@ -14,7 +14,7 @@ import com.udea.reservas.plataformareservas.reservas.dto.CrearReservaRequest;
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.service.ReservaService;
-import com.udea.reservas.plataformareservas.usuarios.model.Usuario;
+import com.udea.reservas.plataformareservas.usuarios.model.User;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import org.junit.jupiter.api.BeforeEach;
@@ -213,7 +213,7 @@ class ReservaControllerTest {
         CrearReservaRequest request,
         String estado
     ) {
-        Usuario usuario = new Usuario();
+        User usuario = new User();
         usuario.setId(usuarioId);
 
         HorarioDisponible horario = new HorarioDisponible();

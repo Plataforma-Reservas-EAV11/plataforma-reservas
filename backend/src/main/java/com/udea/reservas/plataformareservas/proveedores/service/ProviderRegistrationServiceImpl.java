@@ -5,8 +5,8 @@ import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistration
 import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistrationResponse;
 import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
 import com.udea.reservas.plataformareservas.proveedores.repository.IProveedorRepository;
-import com.udea.reservas.plataformareservas.usuarios.model.Usuario;
-import com.udea.reservas.plataformareservas.usuarios.repository.IUsuarioRepository;
+import com.udea.reservas.plataformareservas.usuarios.model.User;
+import com.udea.reservas.plataformareservas.usuarios.repository.UserRepository;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +22,7 @@ public class ProviderRegistrationServiceImpl implements ProviderRegistrationServ
 
     private static final String PROVIDER_ROLE = "proveedor";
 
-    private final IUsuarioRepository usuarioRepository;
+    private final UserRepository usuarioRepository;
     private final IProveedorRepository proveedorRepository;
     private final PasswordEncoder passwordEncoder;
 
@@ -38,7 +38,7 @@ public class ProviderRegistrationServiceImpl implements ProviderRegistrationServ
         }
 
         String normalizedEmail = request.email().trim().toLowerCase(Locale.ROOT);
-        if (usuarioRepository.existsByEmail(normalizedEmail)) {
+        if (usuarioRepository.existsByEmailIgnoreCase(normalizedEmail)) {
             throw new BusinessRuleException(
                 "EMAIL_ALREADY_REGISTERED",
                 "El correo ya está registrado.",
@@ -46,13 +46,13 @@ public class ProviderRegistrationServiceImpl implements ProviderRegistrationServ
             );
         }
 
-        Usuario usuario = Usuario.builder()
-            .nombre(request.name().trim())
+        User usuario = User.builder()
+            .name(request.name().trim())
             .email(normalizedEmail)
             .passwordHash(passwordEncoder.encode(request.password()))
-            .rol(PROVIDER_ROLE)
+            .role(PROVIDER_ROLE)
             .build();
-        Usuario savedUser = usuarioRepository.save(usuario);
+        User savedUser = usuarioRepository.save(usuario);
 
         Proveedor proveedor = Proveedor.builder()
             .usuario(savedUser)
@@ -70,7 +70,7 @@ public class ProviderRegistrationServiceImpl implements ProviderRegistrationServ
         return new ProviderRegistrationResponse(
             savedProvider.getId(),
             savedUser.getId(),
-            savedUser.getNombre(),
+            savedUser.getName(),
             savedUser.getEmail(),
             savedProvider.getNombreNegocio(),
             savedProvider.getTelefono()

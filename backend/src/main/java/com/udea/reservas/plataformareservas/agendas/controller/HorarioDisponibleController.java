@@ -6,6 +6,7 @@ import com.udea.reservas.plataformareservas.agendas.service.HorarioDisponibleSer
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -20,7 +21,7 @@ public class HorarioDisponibleController {
     @PostMapping("/{agendaId}/horarios")
     public ResponseEntity<Map<String, Object>> agregarHorario(
             @PathVariable Integer agendaId,
-            @RequestBody CrearHorarioRequest request) {
+            @Valid @RequestBody CrearHorarioRequest request) {
 
         HorarioResponse horario = service.crearHorario(agendaId, request);
 

@@ -15,7 +15,7 @@ import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
 import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
 import com.udea.reservas.plataformareservas.recursos.model.Recurso;
-import com.udea.reservas.plataformareservas.usuarios.model.Usuario;
+import com.udea.reservas.plataformareservas.usuarios.model.User;
 import java.time.LocalTime;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -42,12 +42,12 @@ public class HorarioDisponibleServiceTest {
         "Definir bloque de disponibilidad válido con rango de horas correcto"
     )
     void defineBloqueDisponibilidadValido() {
-        Usuario usuario = Usuario.builder()
+        User usuario = User.builder()
             .id(1)
-            .nombre("Juan Pérez")
+            .name("Juan Pérez")
             .email("juan@test.com")
             .passwordHash("hash123")
-            .rol("proveedor")
+            .role("proveedor")
             .build();
 
         Proveedor proveedor = Proveedor.builder()

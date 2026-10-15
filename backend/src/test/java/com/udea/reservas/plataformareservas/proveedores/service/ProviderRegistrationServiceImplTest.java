@@ -14,8 +14,8 @@ import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistration
 import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistrationResponse;
 import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
 import com.udea.reservas.plataformareservas.proveedores.repository.IProveedorRepository;
-import com.udea.reservas.plataformareservas.usuarios.model.Usuario;
-import com.udea.reservas.plataformareservas.usuarios.repository.IUsuarioRepository;
+import com.udea.reservas.plataformareservas.usuarios.model.User;
+import com.udea.reservas.plataformareservas.usuarios.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,7 +31,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 class ProviderRegistrationServiceImplTest {
 
     @Mock
-    private IUsuarioRepository usuarioRepository;
+    private UserRepository usuarioRepository;
 
     @Mock
     private IProveedorRepository proveedorRepository;
@@ -51,10 +51,11 @@ class ProviderRegistrationServiceImplTest {
             "  ANA@EXAMPLE.COM ",
             "MiNegocio"
         );
-        when(usuarioRepository.existsByEmail("ana@example.com")).thenReturn(false);
+        when(usuarioRepository.existsByEmailIgnoreCase("ana@example.com"))
+            .thenReturn(false);
         when(passwordEncoder.encode("clave-segura")).thenReturn("bcrypt-hash");
-        when(usuarioRepository.save(any(Usuario.class))).thenAnswer(invocation -> {
-            Usuario usuario = invocation.getArgument(0);
+        when(usuarioRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User usuario = invocation.getArgument(0);
             usuario.setId(31);
             return usuario;
         });
@@ -68,17 +69,17 @@ class ProviderRegistrationServiceImplTest {
         ProviderRegistrationResponse response = registrationService.register(request);
 
         // Assert
-        ArgumentCaptor<Usuario> usuarioCaptor = ArgumentCaptor.forClass(Usuario.class);
+        ArgumentCaptor<User> usuarioCaptor = ArgumentCaptor.forClass(User.class);
         ArgumentCaptor<Proveedor> proveedorCaptor = ArgumentCaptor.forClass(Proveedor.class);
         verify(usuarioRepository).save(usuarioCaptor.capture());
         verify(proveedorRepository).save(proveedorCaptor.capture());
-        Usuario savedUser = usuarioCaptor.getValue();
+        User savedUser = usuarioCaptor.getValue();
         Proveedor savedProvider = proveedorCaptor.getValue();
 
-        assertThat(savedUser.getNombre()).isEqualTo("Ana Pérez");
+        assertThat(savedUser.getName()).isEqualTo("Ana Pérez");
         assertThat(savedUser.getEmail()).isEqualTo("ana@example.com");
         assertThat(savedUser.getPasswordHash()).isEqualTo("bcrypt-hash");
-        assertThat(savedUser.getRol()).isEqualTo("proveedor");
+        assertThat(savedUser.getRole()).isEqualTo("proveedor");
         assertThat(savedProvider.getUsuario()).isSameAs(savedUser);
         assertThat(savedProvider.getNombreNegocio()).isEqualTo("MiNegocio");
         assertThat(response).isEqualTo(
@@ -105,7 +106,8 @@ class ProviderRegistrationServiceImplTest {
             "ANA@example.com",
             "MiNegocio"
         );
-        when(usuarioRepository.existsByEmail("ana@example.com")).thenReturn(true);
+        when(usuarioRepository.existsByEmailIgnoreCase("ana@example.com"))
+            .thenReturn(true);
 
         // Act and Assert
         assertThatThrownBy(() -> registrationService.register(request))
@@ -116,7 +118,7 @@ class ProviderRegistrationServiceImplTest {
                     .isEqualTo("EMAIL_ALREADY_REGISTERED");
                 assertThat(businessException.getStatus()).isEqualTo(HttpStatus.CONFLICT);
             });
-        verify(usuarioRepository, never()).save(any(Usuario.class));
+        verify(usuarioRepository, never()).save(any(User.class));
         verifyNoInteractions(proveedorRepository, passwordEncoder);
     }
 
