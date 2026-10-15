@@ -29,7 +29,7 @@ Monolito modular: un único backend Spring Boot, con un solo despliegue y una so
 
 | Componente | Versión |
 |---|---|
-| Java (JDK) | 17 (Eclipse Temurin 17.0.20.1) |
+| Java (JDK) | 25 (Eclipse Temurin 25.0.4.1) |
 | Spring Boot | 4.1.1 |
 | Lenguaje | Java |
 | Gestor de build | Maven |
