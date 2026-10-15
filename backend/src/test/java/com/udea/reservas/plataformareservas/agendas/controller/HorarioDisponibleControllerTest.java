@@ -80,13 +80,20 @@ public class HorarioDisponibleControllerTest {
                     .content(this.objectMapper.writeValueAsString(request))
             )
             .andExpect(status().isOk())
+            .andExpect(
+                jsonPath("$.mensaje").value(
+                    "Bloque de disponibilidad creado exitosamente."
+                )
+            )
             .andExpect(jsonPath("$.data.id").value(response.id()))
             .andExpect(jsonPath("$.data.agendaId").value(response.agendaId()))
             .andExpect(jsonPath("$.data.diaSemana").value(response.diaSemana()))
             .andExpect(jsonPath("$.data.horaInicio").value("10:30:00"))
             .andExpect(jsonPath("$.data.horaFin").value("12:00:00"))
             .andExpect(
-                jsonPath("$.data.duracionSlotMin").value(response.duracionSlotMin())
+                jsonPath("$.data.duracionSlotMin").value(
+                    response.duracionSlotMin()
+                )
             );
 
         verify(horarioDisponibleService).crearHorario(agendaId, request);
