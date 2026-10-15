@@ -61,9 +61,10 @@ class ReservaServiceTest {
             Optional.of(horario)
         );
         when(
-            reservaRepository.existsByHorario_IdAndFechaAndEstado(
+            reservaRepository.existsByHorario_IdAndFechaAndHoraAndEstadoIgnoreCase(
                 10,
                 fecha,
+                hora,
                 "activa"
             )
         ).thenReturn(false);
@@ -232,9 +233,10 @@ class ReservaServiceTest {
         LocalTime hora = LocalTime.of(10, 30);
         prepararDatosReservaValida();
         when(
-            reservaRepository.existsByHorario_IdAndFechaAndEstado(
+            reservaRepository.existsByHorario_IdAndFechaAndHoraAndEstadoIgnoreCase(
                 10,
                 fecha,
+                hora,
                 "activa"
             )
         ).thenReturn(true);
@@ -246,7 +248,7 @@ class ReservaServiceTest {
 
         // Assert
         assertEquals(
-            "Este horario ya está reservado para esa fecha.",
+            "El recurso no está disponible en la fecha y hora seleccionadas.",
             exception.getMessage()
         );
         assertEquals(HttpStatus.CONFLICT, exception.getStatus());
