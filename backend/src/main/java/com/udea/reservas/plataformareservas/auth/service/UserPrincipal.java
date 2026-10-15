@@ -49,7 +49,7 @@ public final class UserPrincipal implements UserDetails, CredentialsContainer {
 
     @Override
     public String getUsername() {
-        return email;
+        return getEmail();
     }
 
     @Override

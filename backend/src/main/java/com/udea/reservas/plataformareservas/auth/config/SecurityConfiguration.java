@@ -10,6 +10,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.SessionManagementConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.authentication.ProviderManager;
@@ -45,7 +46,7 @@ public class SecurityConfiguration {
         HttpSecurity http,
         SecurityContextRepository securityContextRepository,
         ObjectMapper objectMapper
-    ) throws Exception {
+    ) {
         AccessDeniedHandler csrfErrorHandler = (request, response, exception) -> {
             response.setStatus(HttpStatus.FORBIDDEN.value());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
@@ -74,8 +75,8 @@ public class SecurityConfiguration {
             .sessionManagement(sessionManagement ->
                 sessionManagement
                     .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                    .sessionFixation(sessionFixation ->
-                        sessionFixation.changeSessionId()
+                    .sessionFixation(
+                        SessionManagementConfigurer.SessionFixationConfigurer::changeSessionId
                     )
             );
 
