@@ -1,0 +1,6 @@
+
+# Volcados de error de la JVM
+hs_err_pid*.log
+
+# Documentos internos del equipo QA
+documentos-no-van-commit/
