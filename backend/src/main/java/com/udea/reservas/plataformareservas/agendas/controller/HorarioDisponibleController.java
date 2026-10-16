@@ -2,6 +2,7 @@ package com.udea.reservas.plataformareservas.agendas.controller;
 
 import com.udea.reservas.plataformareservas.agendas.dto.CrearHorarioRequest;
 import com.udea.reservas.plataformareservas.agendas.dto.HorarioResponse;
+import com.udea.reservas.plataformareservas.agendas.exception.AgendaException;
 import com.udea.reservas.plataformareservas.agendas.service.HorarioDisponibleService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -30,5 +31,10 @@ public class HorarioDisponibleController {
         response.put("data", horario);
 
         return ResponseEntity.ok(response);
+    }
+
+    @ExceptionHandler(AgendaException.class)
+    public ResponseEntity<String> manejarAgendaException(AgendaException ex) {
+        return ResponseEntity.status(ex.getStatus()).body(ex.getMessage());
     }
 }

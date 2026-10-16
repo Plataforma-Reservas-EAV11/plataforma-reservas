@@ -1,10 +1,15 @@
 package com.udea.reservas.plataformareservas.agendas.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import java.time.LocalTime;
 
 public record CrearHorarioRequest(
         @NotNull(message = "El día de la semana es obligatorio")
+        @Min(value = 0, message = "El día de la semana debe estar entre 0 (domingo) y 6 (sábado)")
+        @Max(value = 6, message = "El día de la semana debe estar entre 0 (domingo) y 6 (sábado)")
         Integer diaSemana,
 
         @NotNull(message = "La hora de inicio es obligatoria")
@@ -14,5 +19,6 @@ public record CrearHorarioRequest(
         LocalTime horaFin,
 
         @NotNull(message = "La duración del slot es obligatoria")
+        @Positive(message = "La duración del slot debe ser mayor que cero")
         Integer duracionSlotMin
 ) {}
