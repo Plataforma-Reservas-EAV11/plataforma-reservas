@@ -81,11 +81,14 @@ class ProviderControllerTest {
     @Test
     @DisplayName("Devuelve detalles de validación cuando faltan campos obligatorios")
     void registerEmptyBodyReturnsValidationError() throws Exception {
+        // Arrange
+        String emptyBody = "{}";
+
         // Act and Assert
         mockMvc.perform(
             post("/api/v1/providers/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{}")
+                .content(emptyBody)
         )
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
@@ -148,11 +151,14 @@ class ProviderControllerTest {
     @Test
     @DisplayName("Devuelve error controlado cuando el cuerpo no es JSON válido")
     void registerMalformedJsonReturnsBadRequest() throws Exception {
+        // Arrange
+        String malformedJson = "{invalid-json";
+
         // Act and Assert
         mockMvc.perform(
             post("/api/v1/providers/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{invalid-json")
+                .content(malformedJson)
         )
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST"))
