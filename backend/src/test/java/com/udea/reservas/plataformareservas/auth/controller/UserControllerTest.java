@@ -1,5 +1,6 @@
 package com.udea.reservas.plataformareservas.auth.controller;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -47,19 +48,22 @@ class UserControllerTest {
 
     @Test
     void registerReturnsCreatedForValidRequest() throws Exception {
+        // Arrange
         UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
             "Ana",
             "ana@example.com",
-            "secret",
-            "secret"
+            "clave-segura",
+            "clave-segura"
         );
         when(userService.register(registrationRequest)).thenReturn(new User());
 
+        // Act
         mockMvc.perform(
             post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(registrationRequest))
         )
+            // Assert
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.success").value(true))
             .andExpect(jsonPath("$.message").value(
@@ -72,6 +76,7 @@ class UserControllerTest {
     @Test
     void registerReturnsFieldErrorsAndDoesNotCallServiceForBlankFields()
         throws Exception {
+        // Arrange
         UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
             "",
             "",
@@ -79,11 +84,13 @@ class UserControllerTest {
             ""
         );
 
+        // Act
         mockMvc.perform(
             post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(registrationRequest))
         )
+            // Assert
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.success").value(false))
             .andExpect(jsonPath("$.errors.name").exists())
@@ -96,11 +103,12 @@ class UserControllerTest {
 
     @Test
     void registerReturnsConflictWhenEmailAlreadyExists() throws Exception {
+        // Arrange
         UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
             "Ana",
             "ana@example.com",
-            "secret",
-            "secret"
+            "clave-segura",
+            "clave-segura"
         );
         when(userService.register(registrationRequest)).thenThrow(
             new EmailAlreadyRegisteredException(
@@ -108,11 +116,13 @@ class UserControllerTest {
             )
         );
 
+        // Act
         mockMvc.perform(
             post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(registrationRequest))
         )
+            // Assert
             .andExpect(status().isConflict())
             .andExpect(jsonPath("$.message").value(
                 "El correo electrónico ya está registrado."
@@ -121,25 +131,79 @@ class UserControllerTest {
 
     @Test
     void registerReturnsBadRequestWhenPasswordsDoNotMatch() throws Exception {
+        // Arrange
         UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
             "Ana",
             "ana@example.com",
-            "secret",
-            "other"
+            "clave-segura",
+            "otra-clave"
         );
         when(userService.register(registrationRequest)).thenThrow(
             new PasswordMismatchException("Las contraseñas no coinciden.")
         );
 
+        // Act
         mockMvc.perform(
             post("/api/v1/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(registrationRequest))
         )
+            // Assert
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value(
                 "Las contraseñas no coinciden."
             ));
+    }
+
+    @Test
+    void registerRejectsPasswordShorterThanEightCharacters() throws Exception {
+        // Arrange
+        UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
+            "Ana",
+            "ana@example.com",
+            "corta1",
+            "corta1"
+        );
+
+        // Act
+        mockMvc.perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registrationRequest))
+        )
+            // Assert
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors.password").value(
+                "La contraseña debe tener al menos 8 caracteres."
+            ));
+
+        verify(userService, never()).register(any());
+    }
+
+    @Test
+    void registerRejectsPasswordLongerThanSeventyTwoBytes() throws Exception {
+        // Arrange
+        String password = "ñ".repeat(40);
+        UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
+            "Ana",
+            "ana@example.com",
+            password,
+            password
+        );
+
+        // Act
+        mockMvc.perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registrationRequest))
+        )
+            // Assert
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errors.password").value(
+                "La contraseña es demasiado larga."
+            ));
+
+        verify(userService, never()).register(any());
     }
 
     @Test
@@ -148,8 +212,8 @@ class UserControllerTest {
         UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
             "Ana",
             "ana@example.com",
-            "secret",
-            "secret"
+            "clave-segura",
+            "clave-segura"
         );
         when(userService.register(registrationRequest)).thenThrow(
             new DataIntegrityViolationException("duplicate email")

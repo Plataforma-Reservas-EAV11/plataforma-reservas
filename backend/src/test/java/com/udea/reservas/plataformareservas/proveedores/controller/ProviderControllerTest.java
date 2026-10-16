@@ -81,11 +81,14 @@ class ProviderControllerTest {
     @Test
     @DisplayName("Devuelve detalles de validación cuando faltan campos obligatorios")
     void registerEmptyBodyReturnsValidationError() throws Exception {
+        // Arrange
+        String emptyBody = "{}";
+
         // Act and Assert
         mockMvc.perform(
             post("/api/v1/providers/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{}")
+                .content(emptyBody)
         )
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
@@ -148,11 +151,14 @@ class ProviderControllerTest {
     @Test
     @DisplayName("Devuelve error controlado cuando el cuerpo no es JSON válido")
     void registerMalformedJsonReturnsBadRequest() throws Exception {
+        // Arrange
+        String malformedJson = "{invalid-json";
+
         // Act and Assert
         mockMvc.perform(
             post("/api/v1/providers/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{invalid-json")
+                .content(malformedJson)
         )
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST"))
@@ -161,6 +167,33 @@ class ProviderControllerTest {
                     .value("El cuerpo de la solicitud no es un JSON válido.")
             )
             .andExpect(jsonPath("$.traceId").isNotEmpty());
+
+        verify(registrationService, never()).register(any(ProviderRegistrationRequest.class));
+    }
+
+    @Test
+    @DisplayName("Rechaza contraseñas de más de 72 bytes aunque tengan menos de 72 caracteres")
+    void registerPasswordOverSeventyTwoBytesReturnsValidationError() throws Exception {
+        // Arrange
+        String password = "ñ".repeat(40);
+        ProviderRegistrationRequest request = new ProviderRegistrationRequest(
+            "Ana Pérez",
+            "MiNegocio",
+            "ana@example.com",
+            password,
+            password,
+            "3001234567"
+        );
+
+        // Act and Assert
+        mockMvc.perform(
+            post("/api/v1/providers/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request))
+        )
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.details[0]").value("password es demasiado larga"));
 
         verify(registrationService, never()).register(any(ProviderRegistrationRequest.class));
     }

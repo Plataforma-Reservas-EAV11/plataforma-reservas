@@ -2,6 +2,7 @@ package com.udea.reservas.plataformareservas.auth.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,6 +65,7 @@ class LoginControllerTest {
     @Test
     void loginPersistsAuthenticatedContextAndReturnsOnlyPublicUserData()
         throws Exception {
+        // Arrange
         UserPrincipal principal = new UserPrincipal(
             7,
             "Ana",
@@ -81,6 +83,7 @@ class LoginControllerTest {
         MockHttpSession session = new MockHttpSession();
         String oldSessionId = session.getId();
 
+        // Act
         mockMvc.perform(
             post("/api/v1/auth/login")
                 .session(session)
@@ -91,6 +94,7 @@ class LoginControllerTest {
                     )
                 )
         )
+            // Assert
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.id").value(7))
             .andExpect(jsonPath("$.data.name").value("Ana"))
@@ -104,15 +108,17 @@ class LoginControllerTest {
             any(),
             any()
         );
-        org.junit.jupiter.api.Assertions.assertNotEquals(oldSessionId, session.getId());
+        assertNotEquals(oldSessionId, session.getId());
     }
 
     @Test
     void loginReturnsSameGenericUnauthorizedResponseForInvalidCredentials()
         throws Exception {
+        // Arrange
         when(authenticationManager.authenticate(any(Authentication.class)))
             .thenThrow(new BadCredentialsException("Internal detail"));
 
+        // Act
         mockMvc.perform(
             post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -122,6 +128,7 @@ class LoginControllerTest {
                     )
                 )
         )
+            // Assert
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.errorCode").value("INVALID_CREDENTIALS"))
             .andExpect(jsonPath("$.message").value(
@@ -137,15 +144,18 @@ class LoginControllerTest {
 
     @Test
     void loginRejectsInvalidFieldsBeforeAuthentication() throws Exception {
+        // Arrange
+        LoginPayload payload = new LoginPayload("not-an-email", "");
+
+        // Act
         mockMvc.perform(
             post("/api/v1/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
-                    objectMapper.writeValueAsString(
-                        new LoginPayload("not-an-email", "")
-                    )
+                    objectMapper.writeValueAsString(payload)
                 )
         )
+            // Assert
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errors.email").exists())
             .andExpect(jsonPath("$.errors.password").exists());
@@ -158,6 +168,35 @@ class LoginControllerTest {
             any(),
             any()
         );
+    }
+
+    @Test
+    void loginRejectsUnexpectedPrincipalTypeWithoutExposingDetails()
+        throws Exception {
+        // Arrange
+        Authentication authentication =
+            UsernamePasswordAuthenticationToken.authenticated(
+                "ana@example.com",
+                null,
+                List.of()
+            );
+        when(authenticationManager.authenticate(any(Authentication.class)))
+            .thenReturn(authentication);
+
+        // Act
+        mockMvc.perform(
+            post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new LoginPayload("ana@example.com", "secret")
+                    )
+                )
+        )
+            // Assert
+            .andExpect(status().isInternalServerError())
+            .andExpect(jsonPath("$.errorCode").value("INTERNAL_ERROR"))
+            .andExpect(jsonPath("$.data").doesNotExist());
     }
 
     @Test

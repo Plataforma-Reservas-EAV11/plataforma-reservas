@@ -21,12 +21,16 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 @ExtendWith(MockitoExtension.class)
-public class HorarioDisponibleServiceTest {
+class HorarioDisponibleServiceTest {
 
     @Mock
     private IAgendaRepository agendaRepository;
@@ -42,37 +46,8 @@ public class HorarioDisponibleServiceTest {
         "Definir bloque de disponibilidad válido con rango de horas correcto"
     )
     void defineBloqueDisponibilidadValido() {
-        User usuario = User.builder()
-            .id(1)
-            .name("Juan Pérez")
-            .email("juan@test.com")
-            .passwordHash("hash123")
-            .role("proveedor")
-            .build();
-
-        Proveedor proveedor = Proveedor.builder()
-            .id(1)
-            .usuario(usuario)
-            .nombreNegocio("Barbería Style")
-            .telefono("3001234567")
-            .build();
-
-        Recurso recurso = Recurso.builder()
-            .id(1)
-            .proveedor(proveedor)
-            .nombre("Silla 1")
-            .tipo("silla")
-            .activo(true)
-            .build();
-
-        Agenda agenda = Agenda.builder()
-            .id(1)
-            .proveedor(proveedor)
-            .recurso(recurso)
-            .nombre("Agenda Principal")
-            .activa(true)
-            .build();
-
+        // Arrange
+        Agenda agenda = crearAgenda();
         HorarioDisponible horario = HorarioDisponible.builder()
             .id(1)
             .agenda(agenda)
@@ -96,14 +71,17 @@ public class HorarioDisponibleServiceTest {
             horario.getDuracionSlotMin()
         );
 
+        // Act
         HorarioResponse resultado = horarioDisponibleService.crearHorario(
             agenda.getId(),
             request
         );
 
+        // Assert
         assertThat(resultado)
             .isNotNull()
             .extracting(
+                HorarioResponse::id,
                 HorarioResponse::agendaId,
                 HorarioResponse::diaSemana,
                 HorarioResponse::horaInicio,
@@ -111,6 +89,7 @@ public class HorarioDisponibleServiceTest {
                 HorarioResponse::duracionSlotMin
             )
             .containsExactly(
+                1,
                 agenda.getId(),
                 request.diaSemana(),
                 request.horaInicio(),
@@ -118,28 +97,186 @@ public class HorarioDisponibleServiceTest {
                 request.duracionSlotMin()
             );
 
-        verify(horarioDisponibleRepository).save(any(HorarioDisponible.class));
+        ArgumentCaptor<HorarioDisponible> captor =
+            ArgumentCaptor.forClass(HorarioDisponible.class);
+        verify(horarioDisponibleRepository).save(captor.capture());
+        assertThat(captor.getValue().getAgenda()).isSameAs(agenda);
     }
 
     @Test
-    @DisplayName("Lanzar excepción cuando la agenda no existe")
+    @DisplayName("Lanzar excepción 404 cuando la agenda no existe")
     void lanzaExcepcionAgendaNoExiste() {
+        // Arrange
         CrearHorarioRequest request = new CrearHorarioRequest(
             2,
             LocalTime.of(10, 30),
             LocalTime.of(12, 00),
             90
         );
-
         when(agendaRepository.findById(7)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() ->
+        // Act
+        Throwable thrown = catchThrowable(() ->
             horarioDisponibleService.crearHorario(7, request)
-        )
+        );
+
+        // Assert
+        assertThat(thrown)
             .isInstanceOf(AgendaException.class)
             .hasMessage("La agenda con ID " + 7 + " no existe.");
-
-        verify(agendaRepository).findById(7);
+        assertThat(((AgendaException) thrown).getStatus())
+            .isEqualTo(HttpStatus.NOT_FOUND);
         verify(horarioDisponibleRepository, never()).save(any());
+    }
+
+    @ParameterizedTest(name = "Rechaza el rango {0} - {1}")
+    @CsvSource({ "10:00, 10:00", "10:00, 09:59", "14:00, 08:00" })
+    @DisplayName("Rechaza bloques cuya hora de fin no es posterior a la de inicio")
+    void rechazaRangoDeHorasInvalido(LocalTime horaInicio, LocalTime horaFin) {
+        // Arrange
+        Agenda agenda = crearAgenda();
+        when(agendaRepository.findById(1)).thenReturn(Optional.of(agenda));
+        CrearHorarioRequest request = new CrearHorarioRequest(
+            1,
+            horaInicio,
+            horaFin,
+            30
+        );
+
+        // Act
+        Throwable thrown = catchThrowable(() ->
+            horarioDisponibleService.crearHorario(1, request)
+        );
+
+        // Assert
+        assertThat(thrown)
+            .isInstanceOf(AgendaException.class)
+            .hasMessage(
+                "El rango de horas no es válido. La hora de fin debe ser posterior a la de inicio."
+            );
+        assertThat(((AgendaException) thrown).getStatus())
+            .isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(horarioDisponibleRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Acepta el valor límite de un minuto de duración")
+    void aceptaBloqueDeUnMinuto() {
+        // Arrange
+        Agenda agenda = crearAgenda();
+        when(agendaRepository.findById(1)).thenReturn(Optional.of(agenda));
+        when(horarioDisponibleRepository.save(any(HorarioDisponible.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        CrearHorarioRequest request = new CrearHorarioRequest(
+            1,
+            LocalTime.of(10, 0),
+            LocalTime.of(10, 1),
+            1
+        );
+
+        // Act
+        HorarioResponse resultado = horarioDisponibleService.crearHorario(1, request);
+
+        // Assert
+        assertThat(resultado.horaFin()).isEqualTo(LocalTime.of(10, 1));
+        verify(horarioDisponibleRepository).save(any(HorarioDisponible.class));
+    }
+
+    @Test
+    @DisplayName("Rechaza un bloque que se solapa con otro de la misma agenda y día")
+    void rechazaBloqueSolapado() {
+        // Arrange
+        Agenda agenda = crearAgenda();
+        when(agendaRepository.findById(1)).thenReturn(Optional.of(agenda));
+        when(
+            horarioDisponibleRepository.existsByAgenda_IdAndDiaSemanaAndHoraInicioLessThanAndHoraFinGreaterThan(
+                1,
+                1,
+                LocalTime.of(13, 0),
+                LocalTime.of(11, 0)
+            )
+        ).thenReturn(true);
+        CrearHorarioRequest request = new CrearHorarioRequest(
+            1,
+            LocalTime.of(11, 0),
+            LocalTime.of(13, 0),
+            30
+        );
+
+        // Act
+        Throwable thrown = catchThrowable(() ->
+            horarioDisponibleService.crearHorario(1, request)
+        );
+
+        // Assert
+        assertThat(thrown)
+            .isInstanceOf(AgendaException.class)
+            .hasMessage(
+                "El horario ya tiene disponibilidad definida. No se pueden solapar bloques."
+            );
+        assertThat(((AgendaException) thrown).getStatus())
+            .isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(horarioDisponibleRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Consulta el solapamiento con la regla inicioExistente < finNuevo y finExistente > inicioNuevo")
+    void consultaSolapamientoConLimitesEstrictos() {
+        // Arrange
+        Agenda agenda = crearAgenda();
+        when(agendaRepository.findById(1)).thenReturn(Optional.of(agenda));
+        when(horarioDisponibleRepository.save(any(HorarioDisponible.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        CrearHorarioRequest request = new CrearHorarioRequest(
+            3,
+            LocalTime.of(12, 0),
+            LocalTime.of(13, 0),
+            30
+        );
+
+        // Act
+        horarioDisponibleService.crearHorario(1, request);
+
+        // Assert
+        verify(horarioDisponibleRepository)
+            .existsByAgenda_IdAndDiaSemanaAndHoraInicioLessThanAndHoraFinGreaterThan(
+                1,
+                3,
+                LocalTime.of(13, 0),
+                LocalTime.of(12, 0)
+            );
+    }
+
+    private Agenda crearAgenda() {
+        User usuario = User.builder()
+            .id(1)
+            .name("Juan Pérez")
+            .email("juan@test.com")
+            .passwordHash("hash123")
+            .role("proveedor")
+            .build();
+
+        Proveedor proveedor = Proveedor.builder()
+            .id(1)
+            .usuario(usuario)
+            .nombreNegocio("Barbería Style")
+            .telefono("3001234567")
+            .build();
+
+        Recurso recurso = Recurso.builder()
+            .id(1)
+            .proveedor(proveedor)
+            .nombre("Silla 1")
+            .tipo("silla")
+            .activo(true)
+            .build();
+
+        return Agenda.builder()
+            .id(1)
+            .proveedor(proveedor)
+            .recurso(recurso)
+            .nombre("Agenda Principal")
+            .activa(true)
+            .build();
     }
 }

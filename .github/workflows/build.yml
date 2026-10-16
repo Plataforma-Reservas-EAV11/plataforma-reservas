@@ -9,7 +9,7 @@ jobs:
   build:
     name: Análisis de código
     runs-on: ubuntu-latest
-    
+
     steps:
       - uses: actions/checkout@v5
         with:
@@ -29,11 +29,25 @@ jobs:
           key: ${{ runner.os }}-m2-sonar-${{ hashFiles('backend/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-m2-sonar-
+      # mvn verify ejecuta las pruebas unitarias, las de aceptación (Cucumber con
+      # PostgreSQL en Testcontainers) y la regla de cobertura de JaCoCo. El análisis
+      # espera el resultado del Quality Gate y falla el job si no se aprueba.
       - name: Build, test and analyze
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
         run: >
           mvn -B verify
           org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
+          -Dsonar.qualitygate.wait=true
         working-directory: backend
+      - name: Publicar reportes de pruebas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-de-pruebas
+          path: |
+            backend/target/cucumber-reports/
+            backend/target/site/jacoco/
+            backend/target/site/jacoco-it/
+            backend/target/surefire-reports/
+            backend/target/failsafe-reports/

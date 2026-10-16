@@ -34,6 +34,7 @@ class UserServiceImplTest {
 
     @Test
     void registerStoresNormalizedEmailAndEncodedPassword() {
+        // Arrange
         UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
             "  Ana Pérez ",
             " ANA@EXAMPLE.COM ",
@@ -47,8 +48,10 @@ class UserServiceImplTest {
             invocation.getArgument(0)
         );
 
+        // Act
         userService.register(registrationRequest);
 
+        // Assert
         ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(userCaptor.capture());
         User savedUser = userCaptor.getValue();
@@ -60,6 +63,7 @@ class UserServiceImplTest {
 
     @Test
     void registerRejectsAnAlreadyRegisteredEmail() {
+        // Arrange
         UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
             "Ana",
             "ana@example.com",
@@ -69,16 +73,20 @@ class UserServiceImplTest {
         when(userRepository.existsByEmailIgnoreCase("ana@example.com"))
             .thenReturn(true);
 
-        assertThrows(
+        // Act
+        EmailAlreadyRegisteredException exception = assertThrows(
             EmailAlreadyRegisteredException.class,
             () -> userService.register(registrationRequest)
         );
 
+        // Assert
+        assertEquals("El correo electrónico ya está registrado.", exception.getMessage());
         verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
     void registerRejectsDifferentPasswordsBeforeRepositoryAccess() {
+        // Arrange
         UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
             "Ana",
             "ana@example.com",
@@ -86,11 +94,14 @@ class UserServiceImplTest {
             "different"
         );
 
-        assertThrows(
+        // Act
+        PasswordMismatchException exception = assertThrows(
             PasswordMismatchException.class,
             () -> userService.register(registrationRequest)
         );
 
+        // Assert
+        assertEquals("Las contraseñas no coinciden.", exception.getMessage());
         verify(userRepository, never()).existsByEmailIgnoreCase(any());
         verify(userRepository, never()).save(any(User.class));
     }
