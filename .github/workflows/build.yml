@@ -30,13 +30,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-m2-sonar-
       # mvn verify ejecuta las pruebas unitarias, las de aceptación (Cucumber con
-      # PostgreSQL en Testcontainers) y la regla de cobertura de JaCoCo. El análisis
-      # espera el resultado del Quality Gate y falla el job si no se aprueba.
-      - name: Build, test and analyze
+      # PostgreSQL en Testcontainers) y la regla de cobertura de JaCoCo.
+      - name: Build and test
+        run: mvn -B verify
+        working-directory: backend
+      # El análisis de SonarQube requiere SONAR_TOKEN. En PRs de Dependabot el
+      # secret no está disponible, por lo que el análisis se omite para evitar
+      # fallos por credenciales faltantes.
+      - name: Analyze with SonarQube
+        if: ${{ secrets.SONAR_TOKEN != '' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: >
-          mvn -B verify
+          mvn -B
           org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
           -Dsonar.qualitygate.wait=true
         working-directory: backend
