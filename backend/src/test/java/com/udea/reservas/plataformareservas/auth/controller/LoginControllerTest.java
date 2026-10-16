@@ -161,7 +161,7 @@ class LoginControllerTest {
     }
 
     @Test
-    void csrfReturnsTokenMetadata() throws Exception {
+    void csrfReturnsTokenMetadata() {
         // Arrange
         when(csrfToken.getHeaderName()).thenReturn("X-XSRF-TOKEN");
         when(csrfToken.getParameterName()).thenReturn("_csrf");
