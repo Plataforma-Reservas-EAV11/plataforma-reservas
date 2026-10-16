@@ -49,7 +49,7 @@ public class PasosComunes {
         String cuerpo = api.ultimaRespuesta().body();
         if (cuerpo.startsWith("{")) {
             JsonNode json = api.ultimoJson();
-            JsonNode campo = json.has("message") ? json.get("message") : json.get("mensaje");
+            JsonNode campo = json.get(json.has("message") ? "message" : "mensaje");
             assertThat(campo).as("Campo de mensaje en %s", cuerpo).isNotNull();
             assertThat(campo.asString()).isEqualTo(mensaje);
         } else {
