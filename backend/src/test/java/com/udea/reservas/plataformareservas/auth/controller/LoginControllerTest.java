@@ -18,6 +18,8 @@ import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -62,14 +64,17 @@ class LoginControllerTest {
         objectMapper = new ObjectMapper();
     }
 
-    @Test
-    void loginPersistsAuthenticatedContextAndReturnsOnlyPublicUserData()
-        throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = { "usuario", "proveedor" })
+    void loginPersistsAuthenticatedContextAndReturnsPublicUserDataWithRole(
+        String role
+    ) throws Exception {
         // Arrange
         UserPrincipal principal = new UserPrincipal(
             7,
             "Ana",
             "ana@example.com",
+            role,
             "$2a$hashed-value"
         );
         Authentication authentication =
@@ -99,6 +104,7 @@ class LoginControllerTest {
             .andExpect(jsonPath("$.data.id").value(7))
             .andExpect(jsonPath("$.data.name").value("Ana"))
             .andExpect(jsonPath("$.data.email").value("ana@example.com"))
+            .andExpect(jsonPath("$.data.rol").value(role))
             .andExpect(jsonPath("$.data.passwordHash").doesNotExist())
             .andExpect(jsonPath("$.data.password").doesNotExist());
 
