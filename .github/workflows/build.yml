@@ -9,6 +9,8 @@ jobs:
   build:
     name: Análisis de código
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
       - uses: actions/checkout@v5
@@ -34,13 +36,11 @@ jobs:
       - name: Build and test
         run: mvn -B verify
         working-directory: backend
-      # El análisis de SonarQube requiere SONAR_TOKEN. En PRs de Dependabot el
-      # secret no está disponible, por lo que el análisis se omite para evitar
-      # fallos por credenciales faltantes.
-      - name: Analyze with SonarQube
-        if: ${{ secrets.SONAR_TOKEN != '' }}
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      # SONAR_TOKEN es un secret de Actions y GitHub no lo entrega a los workflows
+      # que dispara Dependabot. Sin token se omite el análisis en lugar de fallar;
+      # con token se espera el Quality Gate y el job falla si no se aprueba.
+      - name: Analyze with SonarCloud
+        if: env.SONAR_TOKEN != ''
         run: >
           mvn -B
           org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
