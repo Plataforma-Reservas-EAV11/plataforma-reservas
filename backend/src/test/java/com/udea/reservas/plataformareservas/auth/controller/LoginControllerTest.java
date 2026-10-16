@@ -171,6 +171,35 @@ class LoginControllerTest {
     }
 
     @Test
+    void loginRejectsUnexpectedPrincipalTypeWithoutExposingDetails()
+        throws Exception {
+        // Arrange
+        Authentication authentication =
+            UsernamePasswordAuthenticationToken.authenticated(
+                "ana@example.com",
+                null,
+                List.of()
+            );
+        when(authenticationManager.authenticate(any(Authentication.class)))
+            .thenReturn(authentication);
+
+        // Act
+        mockMvc.perform(
+            post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new LoginPayload("ana@example.com", "secret")
+                    )
+                )
+        )
+            // Assert
+            .andExpect(status().isInternalServerError())
+            .andExpect(jsonPath("$.errorCode").value("INTERNAL_ERROR"))
+            .andExpect(jsonPath("$.data").doesNotExist());
+    }
+
+    @Test
     void csrfReturnsTokenMetadata() {
         // Arrange
         when(csrfToken.getHeaderName()).thenReturn("X-XSRF-TOKEN");

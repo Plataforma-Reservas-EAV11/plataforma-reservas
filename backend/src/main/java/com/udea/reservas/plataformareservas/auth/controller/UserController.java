@@ -81,7 +81,11 @@ public class UserController {
         );
         SecurityContextHolder.setContext(securityContext);
 
-        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
+        if (!(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            throw new IllegalStateException(
+                "The authenticated principal is not a UserPrincipal."
+            );
+        }
         LoginResponse loginResponse = new LoginResponse(
             principal.getId(),
             principal.getName(),
