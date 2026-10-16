@@ -7,10 +7,12 @@ import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import com.udea.reservas.plataformareservas.usuarios.repository.UserRepository;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,11 +23,16 @@ public class ReservaServiceImpl implements ReservaService {
 
     private static final String ESTADO_ACTIVA = "activa";
 
+    private static final String MENSAJE_NO_DISPONIBLE =
+        "El recurso no está disponible en la fecha y hora seleccionadas.";
+
     private final IReservaRepository reservaRepository;
 
     private final UserRepository usuarioRepository;
 
     private final IHorarioDisponibleRepository horarioDisponibleRepository;
+
+    private final Clock clock;
 
     @Override
     @Transactional
@@ -63,9 +70,18 @@ public class ReservaServiceImpl implements ReservaService {
 
         // Regla: no se puede reservar en una fecha/hora que ya pasó
         LocalDateTime fechaHoraReserva = LocalDateTime.of(fecha, hora);
-        if (fechaHoraReserva.isBefore(LocalDateTime.now())) {
+        if (fechaHoraReserva.isBefore(LocalDateTime.now(clock))) {
             throw new ReservaException(
                 "No se puede reservar en una fecha u hora que ya pasó.",
+                HttpStatus.BAD_REQUEST
+            );
+        }
+
+        // Regla: la fecha debe caer en el día de la semana del horario (0 = domingo ... 6 = sábado)
+        int diaSemanaFecha = fecha.getDayOfWeek().getValue() % 7;
+        if (!horario.getDiaSemana().equals(diaSemanaFecha)) {
+            throw new ReservaException(
+                "La fecha seleccionada no corresponde al día habilitado para este horario.",
                 HttpStatus.BAD_REQUEST
             );
         }
@@ -90,10 +106,7 @@ public class ReservaServiceImpl implements ReservaService {
                 ESTADO_ACTIVA
             );
         if (yaOcupado) {
-            throw new ReservaException(
-                "El recurso no está disponible en la fecha y hora seleccionadas.",
-                HttpStatus.CONFLICT
-            );
+            throw new ReservaException(MENSAJE_NO_DISPONIBLE, HttpStatus.CONFLICT);
         }
 
         Reserva reserva = Reserva.builder()
@@ -104,7 +117,13 @@ public class ReservaServiceImpl implements ReservaService {
             .estado(ESTADO_ACTIVA)
             .build();
 
-        return reservaRepository.save(reserva);
+        // El índice único de la base de datos resuelve las solicitudes simultáneas
+        // que pasaron la validación anterior al mismo tiempo.
+        try {
+            return reservaRepository.save(reserva);
+        } catch (DataIntegrityViolationException ex) {
+            throw new ReservaException(MENSAJE_NO_DISPONIBLE, HttpStatus.CONFLICT);
+        }
     }
 
     @Override
@@ -118,6 +137,15 @@ public class ReservaServiceImpl implements ReservaService {
                     HttpStatus.NOT_FOUND
                 )
             );
+
+        // La propiedad se valida antes que el estado para no revelar
+        // información de reservas ajenas.
+        if (!reserva.getUsuario().getId().equals(usuarioId)) {
+            throw new ReservaException(
+                "No puedes cancelar una reserva que no te pertenece.",
+                HttpStatus.FORBIDDEN
+            );
+        }
 
         if (!ESTADO_ACTIVA.equalsIgnoreCase(reserva.getEstado())) {
             if ("cancelada".equalsIgnoreCase(reserva.getEstado())) {
@@ -135,13 +163,6 @@ public class ReservaServiceImpl implements ReservaService {
             throw new ReservaException(
                 "La reserva no está activa.",
                 HttpStatus.BAD_REQUEST
-            );
-        }
-
-        if (!reserva.getUsuario().getId().equals(usuarioId)) {
-            throw new ReservaException(
-                "No puedes cancelar una reserva que no te pertenece.",
-                HttpStatus.FORBIDDEN
             );
         }
 
