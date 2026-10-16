@@ -9,6 +9,8 @@ jobs:
   build:
     name: Análisis de código
     runs-on: ubuntu-latest
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
     steps:
       - uses: actions/checkout@v5
@@ -30,13 +32,17 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-m2-sonar-
       # mvn verify ejecuta las pruebas unitarias, las de aceptación (Cucumber con
-      # PostgreSQL en Testcontainers) y la regla de cobertura de JaCoCo. El análisis
-      # espera el resultado del Quality Gate y falla el job si no se aprueba.
-      - name: Build, test and analyze
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      # PostgreSQL en Testcontainers) y la regla de cobertura de JaCoCo.
+      - name: Build and test
+        run: mvn -B verify
+        working-directory: backend
+      # SONAR_TOKEN es un secret de Actions y GitHub no lo entrega a los workflows
+      # que dispara Dependabot. Sin token se omite el análisis en lugar de fallar;
+      # con token se espera el Quality Gate y el job falla si no se aprueba.
+      - name: Analyze with SonarCloud
+        if: env.SONAR_TOKEN != ''
         run: >
-          mvn -B verify
+          mvn -B
           org.sonarsource.scanner.maven:sonar-maven-plugin:sonar
           -Dsonar.qualitygate.wait=true
         working-directory: backend
