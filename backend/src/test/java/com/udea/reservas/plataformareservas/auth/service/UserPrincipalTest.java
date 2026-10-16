@@ -17,6 +17,7 @@ class UserPrincipalTest {
             7,
             "Ana",
             "ana@example.com",
+            "usuario",
             "hashed-secret"
         );
 
@@ -28,6 +29,7 @@ class UserPrincipalTest {
         assertEquals(7, principal.getId());
         assertEquals("Ana", principal.getName());
         assertEquals("ana@example.com", principal.getEmail());
+        assertEquals("usuario", principal.getRole());
         assertEquals("ana@example.com", principal.getUsername());
         assertEquals("hashed-secret", principal.getPassword());
         assertTrue(authorities.isEmpty());
@@ -44,6 +46,7 @@ class UserPrincipalTest {
             7,
             "Ana",
             "ana@example.com",
+            "usuario",
             "hashed-secret"
         );
 

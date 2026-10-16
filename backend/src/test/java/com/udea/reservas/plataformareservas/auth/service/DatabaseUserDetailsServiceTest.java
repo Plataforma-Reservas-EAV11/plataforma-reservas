@@ -10,6 +10,8 @@ import com.udea.reservas.plataformareservas.usuarios.repository.UserRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -24,14 +26,16 @@ class DatabaseUserDetailsServiceTest {
     @InjectMocks
     private DatabaseUserDetailsService userDetailsService;
 
-    @Test
-    void loadUserByUsernameReturnsPrincipalForNormalizedEmail() {
+    @ParameterizedTest
+    @ValueSource(strings = { "usuario", "proveedor" })
+    void loadUserByUsernameReturnsPrincipalWithPersistedRole(String role) {
         // Arrange
         User user = User.builder()
             .id(7)
             .name("Ana")
             .email("ana@example.com")
             .passwordHash("hashed-secret")
+            .role(role)
             .build();
         when(userRepository.findByEmailIgnoreCase("ana@example.com"))
             .thenReturn(Optional.of(user));
@@ -44,6 +48,7 @@ class DatabaseUserDetailsServiceTest {
         assertEquals(7, result.getId());
         assertEquals("Ana", result.getName());
         assertEquals("ana@example.com", result.getEmail());
+        assertEquals(role, result.getRole());
         assertEquals("hashed-secret", result.getPassword());
         verify(userRepository).findByEmailIgnoreCase("ana@example.com");
     }

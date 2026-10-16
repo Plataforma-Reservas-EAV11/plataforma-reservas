@@ -80,6 +80,7 @@ class SecurityFilterChainTest {
                 7,
                 "Ana",
                 "ana@example.com",
+                "usuario",
                 passwordEncoder.encode("clave-segura-1")
             )
         );
@@ -100,7 +101,8 @@ class SecurityFilterChainTest {
             // Assert
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data.id").value(7))
-            .andExpect(jsonPath("$.data.email").value("ana@example.com"));
+            .andExpect(jsonPath("$.data.email").value("ana@example.com"))
+            .andExpect(jsonPath("$.data.rol").value("usuario"));
     }
 
     @Test
@@ -112,6 +114,7 @@ class SecurityFilterChainTest {
                 7,
                 "Ana",
                 "ana@example.com",
+                "usuario",
                 passwordEncoder.encode("otra-clave-distinta")
             )
         );

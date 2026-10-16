@@ -89,7 +89,8 @@ public class UserController {
         LoginResponse loginResponse = new LoginResponse(
             principal.getId(),
             principal.getName(),
-            principal.getEmail()
+            principal.getEmail(),
+            principal.getRole()
         );
         return ResponseEntity.ok(
             new ApiSuccessResponse<>(
