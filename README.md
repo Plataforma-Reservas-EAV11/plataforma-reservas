@@ -69,7 +69,7 @@ Endpoint: `POST /api/v1/auth/register`
 
 **Respuestas:**
 - `201 Created` — cuenta creada. La contraseña se guarda cifrada con BCrypt y nunca se devuelve en la respuesta.
-- `400 Bad Request` — faltan campos obligatorios, el correo no es válido o las contraseñas no coinciden.
+- `400 Bad Request` — faltan campos obligatorios, el correo no es válido, la contraseña tiene menos de 8 caracteres o más de 72 bytes, o las contraseñas no coinciden.
 - `409 Conflict` — el correo electrónico ya está registrado.
 
 Las respuestas siguen el formato:
@@ -98,9 +98,9 @@ Endpoint: `POST /api/reservas`
 
 **Respuestas:**
 - `201 Created` — reserva creada exitosamente.
-- `400 Bad Request` — horario no habilitado por el proveedor (agenda inactiva), fecha/hora fuera del rango del horario, o fecha/hora ya pasada.
+- `400 Bad Request` — horario no habilitado por el proveedor (agenda inactiva), fecha que no cae en el día de la semana del horario, fecha/hora fuera del rango del horario, o fecha/hora ya pasada (según la zona `APP_TIME_ZONE`, por defecto `America/Bogota`).
 - `404 Not Found` — el usuario o el horario indicado no existe.
-- `409 Conflict` — el horario ya tiene una reserva activa para esa fecha (evita doble reserva).
+- `409 Conflict` — el horario ya tiene una reserva activa para esa fecha (evita doble reserva, también cuando dos solicitudes llegan al mismo tiempo).
 
 
 ## HU: Definir agenda y horarios disponibles
@@ -118,7 +118,7 @@ Endpoint: `POST /api/agendas/{agendaId}/horarios`
 ```
 **Respuestas:**
 - `200 OK` — bloque de disponibilidad guardado exitosamente.
-- `400 Bad Request` — el horario se solapa con uno existente o el rango de horas es inválido.
+- `400 Bad Request` — el horario se solapa con otro bloque de la misma agenda y día (los bloques que solo se tocan, como 10:00–12:00 y 12:00–13:00, sí se permiten), la hora de fin no es posterior a la de inicio, `diaSemana` no está entre 0 (domingo) y 6 (sábado) o `duracionSlotMin` no es mayor que cero.
 - `404 Not Found` — la agenda indicada no existe.
 ## Estructura del repositorio
 
@@ -174,20 +174,37 @@ plataforma-reservas/
 
 CodeF@ctory — Fábrica-Escuela, Universidad de Antioquia. Caso 14: Plataforma de Reservas de Servicios.
 
-## Pruebas unitarias
+## Variables de entorno
 
-Se agregaron pruebas unitarias para validar la lógica de negocio y el comportamiento de los controladores principales de la plataforma. Las pruebas utilizan JUnit 5, Mockito, AssertJ y MockMvc.
+| Variable | Obligatoria | Uso |
+|---|---|---|
+| `DB_PASSWORD` | Sí | Contraseña de la base de datos |
+| `DB_URL`, `DB_USERNAME` | No | Sobrescriben la URL y el usuario del pooler de Supabase |
+| `APP_TIME_ZONE` | No | Zona horaria del negocio para validar reservas (por defecto `America/Bogota`) |
+| `SESSION_COOKIE_SECURE` | No | `false` solo para pruebas locales sobre HTTP (por defecto `true`) |
+| `JPA_SHOW_SQL` | No | `true` para ver el SQL en el log (por defecto `false`) |
 
-La cobertura de las pruebas incluye:
+## Errores
 
-- Creación de reservas con datos válidos.
-- Validación de agendas inexistentes o inactivas y de horarios fuera de rango o ya reservados.
-- Validación de fechas y horas fuera del rango permitido o ya pasadas.
-- Prevención de reservas duplicadas para un mismo horario y fecha.
-- Cancelación de reservas activas y validación de permisos y estados de la reserva.
-- Respuestas HTTP exitosas y manejo de errores en los endpoints de reservas.
-- Creación de horarios disponibles y validación de solicitudes inválidas.
-- Verificación de la carga del contexto principal de la aplicación.
+Los errores técnicos (JSON malformado, parámetro con tipo inválido, ruta inexistente, método no soportado o error inesperado) responden con el formato de los lineamientos y sin detalles internos:
+
+```json
+{ "errorCode": "MALFORMED_REQUEST", "message": "El cuerpo de la solicitud no es un JSON válido.", "details": [], "traceId": "..." }
+```
+
+## Pruebas
+
+```bash
+cd backend
+./mvnw test     # pruebas unitarias (JUnit, Mockito, AssertJ, MockMvc) con el patrón AAA
+./mvnw verify   # unitarias + aceptación (Cucumber) + regla de cobertura de JaCoCo
+```
+
+- **Unitarias** (`*Test.java`): aisladas de la base de datos. La hora actual se inyecta con un `Clock`, de modo que los valores límite son deterministas.
+- **Aceptación** (`AceptacionIT` y `src/test/resources/features/*.feature`): los criterios de aceptación en Gherkin (español) se ejecutan contra la API levantada en un puerto aleatorio y un PostgreSQL 16 en contenedor (Testcontainers) creado con `db/schema.sql`. **Requieren Docker.** Los escenarios con la etiqueta `@pendiente` documentan defectos abiertos y no se ejecutan en el pipeline.
+- **Cobertura:** `mvn verify` falla si la cobertura unitaria baja del 65 % en sentencias o del 80 % en decisiones. Reportes en `target/site/jacoco/` (unitarias) y `target/site/jacoco-it/` (aceptación).
+- **Reportes de Cucumber:** `target/cucumber-reports/cucumber.html`.
+- **CI:** el workflow ejecuta `mvn verify` y el análisis de SonarCloud, espera el Quality Gate y publica los reportes como artefacto. Dependabot revisa las dependencias cada semana.
 
 ### Equipo QA
 
