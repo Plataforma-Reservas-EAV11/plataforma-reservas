@@ -183,10 +183,65 @@ class ReservaControllerTest {
     }
 
     @Test
+    @DisplayName("Cancelar una reserva sin usuario retorna 400")
+    void cancelarReservaSinUsuarioRetorna400() throws Exception {
+        // Arrange
+
+        // Act
+        mockMvc
+            .perform(delete("/api/reservas/{reservaId}/cancelar", 100))
+            // Assert
+            .andExpect(status().isBadRequest());
+
+        verify(reservaService, never()).cancelarReserva(100, null);
+    }
+
+    @Test
+    @DisplayName("Cancelar una reserva con usuario inválido retorna 400")
+    void cancelarReservaConUsuarioInvalidoRetorna400() throws Exception {
+        // Arrange
+
+        // Act
+        mockMvc
+            .perform(
+                delete("/api/reservas/{reservaId}/cancelar", 100)
+                    .queryParam("usuarioId", "no-numerico")
+            )
+            // Assert
+            .andExpect(status().isBadRequest());
+
+        verify(reservaService, never()).cancelarReserva(100, 0);
+    }
+
+    @Test
     @DisplayName("Crear una reserva sin campos obligatorios retorna 400")
     void crearReservaSinCamposObligatoriosRetorna400() throws Exception {
         // Arrange
         String requestInvalido = "{}";
+
+        // Act
+        mockMvc
+            .perform(
+                post("/api/reservas")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(requestInvalido)
+            )
+            // Assert
+            .andExpect(status().isBadRequest());
+
+        verify(reservaService, never()).crearReserva(
+            null,
+            null,
+            null,
+            null
+        );
+    }
+
+    @Test
+    @DisplayName("Crear una reserva con JSON inválido retorna 400")
+    void crearReservaConJsonInvalidoRetorna400() throws Exception {
+        // Arrange
+        String requestInvalido = "{ \"usuarioId\": 1,";
 
         // Act
         mockMvc

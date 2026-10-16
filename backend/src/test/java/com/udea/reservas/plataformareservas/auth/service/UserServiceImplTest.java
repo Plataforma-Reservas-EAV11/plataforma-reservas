@@ -60,20 +60,18 @@ class UserServiceImplTest {
 
     @Test
     void registerRejectsAnAlreadyRegisteredEmail() {
+        UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
+            "Ana",
+            "ana@example.com",
+            "secret",
+            "secret"
+        );
         when(userRepository.existsByEmailIgnoreCase("ana@example.com"))
             .thenReturn(true);
 
         assertThrows(
             EmailAlreadyRegisteredException.class,
-            () ->
-                userService.register(
-                    new UserRegistrationRequest(
-                        "Ana",
-                        "ana@example.com",
-                        "secret",
-                        "secret"
-                    )
-                )
+            () -> userService.register(registrationRequest)
         );
 
         verify(userRepository, never()).save(any(User.class));
@@ -81,17 +79,16 @@ class UserServiceImplTest {
 
     @Test
     void registerRejectsDifferentPasswordsBeforeRepositoryAccess() {
+        UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
+            "Ana",
+            "ana@example.com",
+            "secret",
+            "different"
+        );
+
         assertThrows(
             PasswordMismatchException.class,
-            () ->
-                userService.register(
-                    new UserRegistrationRequest(
-                        "Ana",
-                        "ana@example.com",
-                        "secret",
-                        "different"
-                    )
-                )
+            () -> userService.register(registrationRequest)
         );
 
         verify(userRepository, never()).existsByEmailIgnoreCase(any());

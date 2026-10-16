@@ -83,14 +83,15 @@ public class ReservaServiceImpl implements ReservaService {
 
         // Regla: evitar doble reserva sobre el mismo horario y fecha
         boolean yaOcupado =
-            reservaRepository.existsByHorario_IdAndFechaAndEstado(
+            reservaRepository.existsByHorario_IdAndFechaAndHoraAndEstadoIgnoreCase(
                 horarioId,
                 fecha,
+                hora,
                 ESTADO_ACTIVA
             );
         if (yaOcupado) {
             throw new ReservaException(
-                "Este horario ya está reservado para esa fecha.",
+                "El recurso no está disponible en la fecha y hora seleccionadas.",
                 HttpStatus.CONFLICT
             );
         }

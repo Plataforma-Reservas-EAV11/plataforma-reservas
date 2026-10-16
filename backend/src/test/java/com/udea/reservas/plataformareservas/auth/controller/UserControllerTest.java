@@ -13,6 +13,7 @@ import com.udea.reservas.plataformareservas.auth.exception.PasswordMismatchExcep
 import com.udea.reservas.plataformareservas.auth.service.UserService;
 import com.udea.reservas.plataformareservas.common.exception.GlobalExceptionHandler;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -138,6 +139,32 @@ class UserControllerTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.message").value(
                 "Las contraseñas no coinciden."
+            ));
+    }
+
+    @Test
+    void registerReturnsConflictForDatabaseIntegrityViolation() throws Exception {
+        // Arrange
+        UserRegistrationRequest registrationRequest = new UserRegistrationRequest(
+            "Ana",
+            "ana@example.com",
+            "secret",
+            "secret"
+        );
+        when(userService.register(registrationRequest)).thenThrow(
+            new DataIntegrityViolationException("duplicate email")
+        );
+
+        // Act
+        mockMvc.perform(
+            post("/api/v1/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registrationRequest))
+        )
+            // Assert
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.message").value(
+                "El correo electrónico ya está registrado."
             ));
     }
 }
