@@ -77,8 +77,8 @@ public class ReservaServiceImpl implements ReservaService {
             );
         }
 
-        // Regla: la fecha debe caer en el día de la semana del horario (0 = domingo ... 6 = sábado)
-        int diaSemanaFecha = fecha.getDayOfWeek().getValue() % 7;
+        // Regla: la fecha debe caer en el día de la semana del horario (0 = lunes ... 6 = domingo)
+        int diaSemanaFecha = fecha.getDayOfWeek().getValue() - 1;
         if (!horario.getDiaSemana().equals(diaSemanaFecha)) {
             throw new ReservaException(
                 "La fecha seleccionada no corresponde al día habilitado para este horario.",

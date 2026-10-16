@@ -118,7 +118,7 @@ Endpoint: `POST /api/agendas/{agendaId}/horarios`
 ```
 **Respuestas:**
 - `200 OK` — bloque de disponibilidad guardado exitosamente.
-- `400 Bad Request` — el horario se solapa con otro bloque de la misma agenda y día (los bloques que solo se tocan, como 10:00–12:00 y 12:00–13:00, sí se permiten), la hora de fin no es posterior a la de inicio, `diaSemana` no está entre 0 (domingo) y 6 (sábado) o `duracionSlotMin` no es mayor que cero.
+- `400 Bad Request` — el horario se solapa con otro bloque de la misma agenda y día (los bloques que solo se tocan, como 10:00–12:00 y 12:00–13:00, sí se permiten), la hora de fin no es posterior a la de inicio, `diaSemana` no está entre 0 (lunes) y 6 (domingo) o `duracionSlotMin` no es mayor que cero.
 - `404 Not Found` — la agenda indicada no existe.
 ## Estructura del repositorio
 

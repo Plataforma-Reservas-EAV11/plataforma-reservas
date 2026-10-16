@@ -38,9 +38,9 @@ class ReservaServiceTest {
     // Jueves 15 de octubre de 2026, 10:00 en la zona del negocio
     private static final LocalDateTime AHORA = LocalDateTime.of(2026, 10, 15, 10, 0);
 
-    // 2099-01-01 es jueves: día de la semana 4 (0 = domingo ... 6 = sábado)
+    // 2099-01-01 es jueves: día de la semana 3 (0 = lunes ... 6 = domingo)
     private static final LocalDate FECHA_FUTURA = LocalDate.of(2099, 1, 1);
-    private static final int JUEVES = 4;
+    private static final int JUEVES = 3;
 
     @Mock
     private IReservaRepository reservaRepository;
@@ -176,7 +176,7 @@ class ReservaServiceTest {
     @DisplayName("Rechaza crear una reserva con fecha y hora pasadas")
     void crearReservaConFechaPasadaDebeFallar() {
         // Arrange
-        prepararDatosReservaValida(6);
+        prepararDatosReservaValida(5);
         LocalDate fecha = LocalDate.of(2000, 1, 1);
         LocalTime hora = LocalTime.of(10, 30);
 
@@ -256,10 +256,10 @@ class ReservaServiceTest {
     }
 
     @Test
-    @DisplayName("Interpreta el domingo como día 0 de la semana")
-    void crearReservaEnDomingoUsaDiaCero() {
+    @DisplayName("Interpreta el domingo como día 6 de la semana")
+    void crearReservaEnDomingoUsaDiaSeis() {
         // Arrange
-        prepararDatosReservaValida(0);
+        prepararDatosReservaValida(6);
         LocalDate domingo = LocalDate.of(2099, 1, 4);
         LocalTime hora = LocalTime.of(10, 0);
         when(reservaRepository.save(any(Reserva.class))).thenAnswer(invocation ->
@@ -271,6 +271,24 @@ class ReservaServiceTest {
 
         // Assert
         assertEquals(domingo, resultado.getFecha());
+    }
+
+    @Test
+    @DisplayName("Interpreta el lunes como día 0 de la semana")
+    void crearReservaEnLunesUsaDiaCero() {
+        // Arrange
+        prepararDatosReservaValida(0);
+        LocalDate lunes = LocalDate.of(2099, 1, 5);
+        LocalTime hora = LocalTime.of(10, 0);
+        when(reservaRepository.save(any(Reserva.class))).thenAnswer(invocation ->
+            invocation.getArgument(0)
+        );
+
+        // Act
+        Reserva resultado = reservaServiceImpl.crearReserva(1, 10, lunes, hora);
+
+        // Assert
+        assertEquals(lunes, resultado.getFecha());
     }
 
     @Test

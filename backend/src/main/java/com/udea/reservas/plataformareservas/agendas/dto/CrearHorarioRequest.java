@@ -8,8 +8,8 @@ import java.time.LocalTime;
 
 public record CrearHorarioRequest(
         @NotNull(message = "El día de la semana es obligatorio")
-        @Min(value = 0, message = "El día de la semana debe estar entre 0 (domingo) y 6 (sábado)")
-        @Max(value = 6, message = "El día de la semana debe estar entre 0 (domingo) y 6 (sábado)")
+        @Min(value = 0, message = "El día de la semana debe estar entre 0 (lunes) y 6 (domingo)")
+        @Max(value = 6, message = "El día de la semana debe estar entre 0 (lunes) y 6 (domingo)")
         Integer diaSemana,
 
         @NotNull(message = "La hora de inicio es obligatoria")

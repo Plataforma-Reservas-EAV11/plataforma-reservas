@@ -108,7 +108,7 @@ public class DatosPrueba {
     public void crearHorarioHabilitado(LocalTime inicio, LocalTime fin) {
         crearProveedorConAgendaActiva();
         fechaHorario = LocalDate.now(clock).plusDays(7);
-        crearBloque(fechaHorario.getDayOfWeek().getValue() % 7, inicio, fin);
+        crearBloque(fechaHorario.getDayOfWeek().getValue() - 1, inicio, fin);
     }
 
     public LocalDate hoy() {
