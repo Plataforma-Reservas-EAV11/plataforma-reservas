@@ -115,13 +115,14 @@ public class ReservaServiceImpl implements ReservaService {
             .fecha(fecha)
             .hora(hora)
             .estado(ESTADO_ACTIVA)
+            .createdAt(LocalDateTime.now(clock))
             .build();
 
         // El índice único de la base de datos resuelve las solicitudes simultáneas
         // que pasaron la validación anterior al mismo tiempo.
         try {
             return reservaRepository.save(reserva);
-        } catch (DataIntegrityViolationException ex) {
+        } catch (DataIntegrityViolationException _) {
             throw new ReservaException(MENSAJE_NO_DISPONIBLE, HttpStatus.CONFLICT);
         }
     }

@@ -26,6 +26,9 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 public class ProviderController {
 
+    private static final String REJECTED_LOG_MESSAGE =
+        "Provider request rejected: errorCode={}, traceId={}";
+
     private static final String SUCCESS_MESSAGE =
         "Registro de proveedor exitoso. Ya puedes iniciar sesión.";
 
@@ -50,7 +53,7 @@ public class ProviderController {
             List.of()
         );
         log.warn(
-            "Provider request rejected: errorCode={}, traceId={}",
+            REJECTED_LOG_MESSAGE,
             response.errorCode(),
             response.traceId()
         );
@@ -70,7 +73,7 @@ public class ProviderController {
             details
         );
         log.warn(
-            "Provider request rejected: errorCode={}, traceId={}",
+            REJECTED_LOG_MESSAGE,
             response.errorCode(),
             response.traceId()
         );
@@ -87,7 +90,7 @@ public class ProviderController {
             List.of()
         );
         log.warn(
-            "Provider request rejected: errorCode={}, traceId={}",
+            REJECTED_LOG_MESSAGE,
             response.errorCode(),
             response.traceId()
         );

@@ -24,6 +24,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -102,6 +104,7 @@ class ReservaServiceTest {
         assertEquals(FECHA_FUTURA, guardada.getFecha());
         assertEquals(hora, guardada.getHora());
         assertEquals("activa", guardada.getEstado());
+        assertEquals(AHORA, guardada.getCreatedAt());
     }
 
     @Test
@@ -291,12 +294,12 @@ class ReservaServiceTest {
         assertEquals(lunes, resultado.getFecha());
     }
 
-    @Test
-    @DisplayName("Rechaza una hora anterior al inicio del horario")
-    void crearReservaAntesDelInicioDebeFallar() {
+    @ParameterizedTest(name = "Rechaza la hora {0} en un horario de 10:00 a 12:00")
+    @ValueSource(strings = { "09:59", "12:00", "12:01" })
+    @DisplayName("Rechaza horas fuera del rango del horario (antes del inicio, igual al fin y después del fin)")
+    void crearReservaFueraDelRangoDebeFallar(LocalTime hora) {
         // Arrange
         prepararDatosReservaValida(JUEVES);
-        LocalTime hora = LocalTime.of(9, 59);
 
         // Act
         ReservaException exception = assertThrows(ReservaException.class, () ->
@@ -308,6 +311,7 @@ class ReservaServiceTest {
             "La hora seleccionada está fuera del rango de este horario.",
             exception.getMessage()
         );
+        assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
         verify(reservaRepository, never()).save(any());
     }
 
@@ -326,46 +330,6 @@ class ReservaServiceTest {
 
         // Assert
         assertEquals(hora, resultado.getHora());
-    }
-
-    @Test
-    @DisplayName("Rechaza una hora igual al fin del horario")
-    void crearReservaIgualAlFinDebeFallar() {
-        // Arrange
-        prepararDatosReservaValida(JUEVES);
-        LocalTime hora = LocalTime.of(12, 0);
-
-        // Act
-        ReservaException exception = assertThrows(ReservaException.class, () ->
-            reservaServiceImpl.crearReserva(1, 10, FECHA_FUTURA, hora)
-        );
-
-        // Assert
-        assertEquals(
-            "La hora seleccionada está fuera del rango de este horario.",
-            exception.getMessage()
-        );
-        verify(reservaRepository, never()).save(any());
-    }
-
-    @Test
-    @DisplayName("Rechaza una hora posterior al fin del horario")
-    void crearReservaDespuesDelFinDebeFallar() {
-        // Arrange
-        prepararDatosReservaValida(JUEVES);
-        LocalTime hora = LocalTime.of(12, 1);
-
-        // Act
-        ReservaException exception = assertThrows(ReservaException.class, () ->
-            reservaServiceImpl.crearReserva(1, 10, FECHA_FUTURA, hora)
-        );
-
-        // Assert
-        assertEquals(
-            "La hora seleccionada está fuera del rango de este horario.",
-            exception.getMessage()
-        );
-        verify(reservaRepository, never()).save(any());
     }
 
     @Test
