@@ -28,6 +28,13 @@
     </scm>
     <properties>
         <java.version>25</java.version>
+        <!-- Versiones parcheadas de dependencias administradas por Spring Boot 4.1.1 (análisis SCA):
+             tomcat 11.0.24 tiene CVE-2026-65905, CVE-2026-65182 y CVE-2026-68525 (críticas);
+             jackson 3.1.5 tiene CVE-2026-89425, CVE-2026-89407, CVE-2026-91777, CVE-2026-68497,
+             CVE-2026-91776 (altas), CVE-2026-83557 y CVE-2026-19032 (moderadas).
+             Retirar cuando una versión de Spring Boot traiga estas versiones o superiores. -->
+        <tomcat.version>11.0.27</tomcat.version>
+        <jackson-bom.version>3.1.7</jackson-bom.version>
         <sonar.organization>plataforma-reservas-eav11</sonar.organization>
         <sonar.projectKey>Plataforma-Reservas-EAV11_plataforma-reservas</sonar.projectKey>
         <sonar.projectName>plataforma-reservas</sonar.projectName>
