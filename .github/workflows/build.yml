@@ -15,10 +15,11 @@ env:
   MIN_COVERAGE: 65        # % cobertura mínima
   MAX_DEBT_MIN: 960       # 2 días = 2 x 8 h x 60 min
   MAX_COMPLEXITY: 50      # debe ser menor a este valor
+  MAX_ISSUES: 0           # máx. hallazgos abiertos de severidad Minor o superior
 
 jobs:
   build:
-    name: Análisis de código
+    name: Build and analyze
     runs-on: ubuntu-latest
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -100,6 +101,10 @@ jobs:
             "$API/issues/search?componentKeys=$PROJECT_KEY&branch=$BRANCH&types=VULNERABILITY&severities=CRITICAL,BLOCKER&resolved=false&ps=1")
           VULN=$(echo "$RESP_V" | jq -r '.total // "N/A"')
 
+          RESP_I=$(curl -s -u "$SONAR_TOKEN:" \
+            "$API/issues/search?componentKeys=$PROJECT_KEY&branch=$BRANCH&severities=MINOR,MAJOR,CRITICAL,BLOCKER&resolved=false&ps=1")
+          ISS=$(echo "$RESP_I" | jq -r '.total // "N/A"')
+
           ok()  { echo "✅"; }
           bad() { echo "❌"; }
 
@@ -107,6 +112,7 @@ jobs:
           DEBT_S=$([ -n "$DEBT" ] && [ "$DEBT" -le "$MAX_DEBT_MIN" ] && ok || bad)
           CX_S=$([ -n "$CX" ] && [ "$CX" -lt "$MAX_COMPLEXITY" ] && ok || bad)
           VULN_S=$([ "$VULN" = "0" ] && ok || bad)
+          ISS_S=$([ "$ISS" != "N/A" ] && [ "$ISS" -le "$MAX_ISSUES" ] && ok || bad)
 
           {
             echo "### Resultado de calidad"
@@ -115,10 +121,11 @@ jobs:
             echo "| Cobertura | ${COV:-N/A}% | ≥ ${MIN_COVERAGE}% | $COV_S |"
             echo "| Deuda técnica | ${DEBT:-N/A} min | ≤ ${MAX_DEBT_MIN} min | $DEBT_S |"
             echo "| Complejidad ciclomática | ${CX:-N/A} | < ${MAX_COMPLEXITY} | $CX_S |"
+            echo "| Hallazgos severidad Minor o superior | $ISS | ≤ ${MAX_ISSUES} | $ISS_S |"
             echo "| Vulnerabilidades críticas | $VULN | 0 | $VULN_S |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          if echo "$COV_S$DEBT_S$CX_S$VULN_S" | grep -q "❌"; then
+          if echo "$COV_S$DEBT_S$CX_S$ISS_S$VULN_S" | grep -q "❌"; then
             echo "::warning title=Quality gates::Algunos criterios no se cumplen. Revisa la tabla en Summary."
           fi
 
