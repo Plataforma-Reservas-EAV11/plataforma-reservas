@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 env:
-  PROJECT_KEY: GradeFlow-Labs_GradeFlow-BackEnd   # debe coincidir con sonar.projectKey
+  PROJECT_KEY: Plataforma-Reservas-EAV11_plataforma-reservas   # debe coincidir con sonar.projectKey
   MIN_COVERAGE: 65        # % cobertura mínima
   MAX_DEBT_MIN: 960       # 2 días = 2 x 8 h x 60 min
   MAX_COMPLEXITY: 50      # debe ser menor a este valor
