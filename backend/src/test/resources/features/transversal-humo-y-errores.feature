@@ -20,6 +20,7 @@ Característica: Pruebas de humo y manejo de errores de la API
 
   @excepcional @seguridad @DEF-05 @P2
   Esquema del escenario: Un cuerpo JSON malformado responde 400 en todos los endpoints
+    Dado que inicié sesión con una cuenta de usuario
     Cuando envío a "<ruta>" un cuerpo JSON malformado
     Entonces la respuesta tiene el código HTTP 400
     Y el código de error es "MALFORMED_REQUEST"

@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.udea.reservas.plataformareservas.TestAuthentication;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
 import com.udea.reservas.plataformareservas.common.exception.GlobalExceptionHandler;
 import com.udea.reservas.plataformareservas.reservas.dto.CrearReservaRequest;
@@ -21,6 +22,7 @@ import com.udea.reservas.plataformareservas.reservas.service.ReservaService;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,12 +32,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class ReservaControllerTest {
+
+    // Identidad de la sesión: el controlador la toma de aquí, no de la solicitud
+    private static final int USUARIO_SESION = 1;
 
     @Mock
     private ReservaService reservaService;
@@ -48,27 +54,35 @@ class ReservaControllerTest {
 
     @BeforeEach
     void setUp() {
+        TestAuthentication.authenticateAs(
+            TestAuthentication.principal(USUARIO_SESION)
+        );
         mockMvc = MockMvcBuilders.standaloneSetup(reservaController)
             .setControllerAdvice(new GlobalExceptionHandler())
+            .setCustomArgumentResolvers(TestAuthentication.argumentResolver())
             .build();
         objectMapper = new ObjectMapper();
     }
 
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
-    @DisplayName("Crear una reserva válida retorna 201 y la reserva creada")
+    @DisplayName("Crear una reserva válida retorna 201 y usa el usuario de la sesión")
     void crearReservaValidaRetorna201() throws Exception {
         // Arrange
         CrearReservaRequest request = new CrearReservaRequest(
-            1,
             10,
             LocalDate.of(2099, 1, 1),
             LocalTime.of(10, 30)
         );
-        Reserva reserva = crearReserva(100, 1, 10, request, "activa");
+        Reserva reserva = crearReserva(100, USUARIO_SESION, 10, request, "activa");
 
         when(
             reservaService.crearReserva(
-                request.usuarioId(),
+                USUARIO_SESION,
                 request.horarioId(),
                 request.fecha(),
                 request.hora()
@@ -85,14 +99,14 @@ class ReservaControllerTest {
             // Assert
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").value(100))
-            .andExpect(jsonPath("$.usuarioId").value(1))
+            .andExpect(jsonPath("$.usuarioId").value(USUARIO_SESION))
             .andExpect(jsonPath("$.horarioId").value(10))
             .andExpect(jsonPath("$.fecha").value("2099-01-01"))
             .andExpect(jsonPath("$.hora").value("10:30:00"))
             .andExpect(jsonPath("$.estado").value("activa"));
 
         verify(reservaService).crearReserva(
-            request.usuarioId(),
+            USUARIO_SESION,
             request.horarioId(),
             request.fecha(),
             request.hora()
@@ -100,29 +114,25 @@ class ReservaControllerTest {
     }
 
     @Test
-    @DisplayName("Cancelar una reserva retorna 200 y confirma la cancelación")
+    @DisplayName("Cancelar una reserva retorna 200 y usa el usuario de la sesión")
     void cancelarReservaRetorna200() throws Exception {
         // Arrange
         Reserva reserva = crearReserva(
             100,
-            1,
+            USUARIO_SESION,
             10,
             new CrearReservaRequest(
-                1,
                 10,
                 LocalDate.of(2099, 1, 1),
                 LocalTime.of(10, 30)
             ),
             "cancelada"
         );
-        when(reservaService.cancelarReserva(100, 1)).thenReturn(reserva);
+        when(reservaService.cancelarReserva(100, USUARIO_SESION)).thenReturn(reserva);
 
         // Act
         mockMvc
-            .perform(
-                delete("/api/reservas/{reservaId}/cancelar", 100)
-                    .queryParam("usuarioId", "1")
-            )
+            .perform(delete("/api/reservas/{reservaId}/cancelar", 100))
             // Assert
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.reservaId").value(100))
@@ -133,22 +143,46 @@ class ReservaControllerTest {
                 )
             );
 
-        verify(reservaService).cancelarReserva(100, 1);
+        verify(reservaService).cancelarReserva(100, USUARIO_SESION);
     }
 
     @Test
-    @DisplayName("Crear una reserva inexistente retorna 404 con el mensaje del servicio")
-    void crearReservaInexistenteRetorna404() throws Exception {
+    @DisplayName("DEF-01: un usuarioId enviado en la URL se ignora; manda la sesión")
+    void cancelarReservaIgnoraUsuarioIdDeLaSolicitud() throws Exception {
+        // Arrange
+        int usuarioAjeno = 2;
+        when(reservaService.cancelarReserva(100, USUARIO_SESION)).thenThrow(
+            new ReservaException(
+                "No puedes cancelar una reserva que no te pertenece.",
+                HttpStatus.FORBIDDEN
+            )
+        );
+
+        // Act
+        mockMvc
+            .perform(
+                delete("/api/reservas/{reservaId}/cancelar", 100)
+                    .queryParam("usuarioId", String.valueOf(usuarioAjeno))
+            )
+            // Assert
+            .andExpect(status().isForbidden());
+
+        verify(reservaService).cancelarReserva(100, USUARIO_SESION);
+        verify(reservaService, never()).cancelarReserva(100, usuarioAjeno);
+    }
+
+    @Test
+    @DisplayName("Crear una reserva con un usuario que ya no existe retorna 404 con el mensaje del servicio")
+    void crearReservaConUsuarioInexistenteRetorna404() throws Exception {
         // Arrange
         CrearReservaRequest request = new CrearReservaRequest(
-            99,
             10,
             LocalDate.of(2099, 1, 1),
             LocalTime.of(10, 30)
         );
         when(
             reservaService.crearReserva(
-                request.usuarioId(),
+                USUARIO_SESION,
                 request.horarioId(),
                 request.fecha(),
                 request.hora()
@@ -171,7 +205,7 @@ class ReservaControllerTest {
     @DisplayName("Cancelar una reserva inválida retorna 400 con el mensaje del servicio")
     void cancelarReservaInvalidaRetorna400() throws Exception {
         // Arrange
-        when(reservaService.cancelarReserva(100, 1)).thenThrow(
+        when(reservaService.cancelarReserva(100, USUARIO_SESION)).thenThrow(
             new ReservaException(
                 "La reserva ya está cancelada.",
                 HttpStatus.BAD_REQUEST
@@ -180,49 +214,27 @@ class ReservaControllerTest {
 
         // Act
         mockMvc
-            .perform(
-                delete("/api/reservas/{reservaId}/cancelar", 100)
-                    .queryParam("usuarioId", "1")
-            )
+            .perform(delete("/api/reservas/{reservaId}/cancelar", 100))
             // Assert
             .andExpect(status().isBadRequest())
             .andExpect(content().string("La reserva ya está cancelada."));
     }
 
     @Test
-    @DisplayName("Cancelar una reserva sin usuario retorna 400")
-    void cancelarReservaSinUsuarioRetorna400() throws Exception {
+    @DisplayName("Cancelar una reserva con un id no numérico retorna 400")
+    void cancelarReservaConIdInvalidoRetorna400() throws Exception {
         // Arrange
-        int reservaId = 100;
+        String reservaIdInvalido = "no-numerico";
 
         // Act
         mockMvc
-            .perform(delete("/api/reservas/{reservaId}/cancelar", reservaId))
-            // Assert
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.errorCode").value("HTTP_400"));
-
-        verify(reservaService, never()).cancelarReserva(anyInt(), any());
-    }
-
-    @Test
-    @DisplayName("Cancelar una reserva con usuario inválido retorna 400")
-    void cancelarReservaConUsuarioInvalidoRetorna400() throws Exception {
-        // Arrange
-        String usuarioIdInvalido = "no-numerico";
-
-        // Act
-        mockMvc
-            .perform(
-                delete("/api/reservas/{reservaId}/cancelar", 100)
-                    .queryParam("usuarioId", usuarioIdInvalido)
-            )
+            .perform(delete("/api/reservas/{reservaId}/cancelar", reservaIdInvalido))
             // Assert
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("INVALID_PARAMETER"))
             .andExpect(
                 jsonPath("$.message").value(
-                    "El parámetro 'usuarioId' no tiene un formato válido."
+                    "El parámetro 'reservaId' no tiene un formato válido."
                 )
             );
 
@@ -245,7 +257,6 @@ class ReservaControllerTest {
             // Assert
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.success").value(false))
-            .andExpect(jsonPath("$.errors.usuarioId").exists())
             .andExpect(jsonPath("$.errors.horarioId").exists())
             .andExpect(jsonPath("$.errors.fecha").exists())
             .andExpect(jsonPath("$.errors.hora").exists());
@@ -257,7 +268,7 @@ class ReservaControllerTest {
     @DisplayName("Crear una reserva con JSON inválido retorna 400")
     void crearReservaConJsonInvalidoRetorna400() throws Exception {
         // Arrange
-        String requestInvalido = "{ \"usuarioId\": 1,";
+        String requestInvalido = "{ \"horarioId\": 1,";
 
         // Act
         mockMvc
@@ -278,14 +289,13 @@ class ReservaControllerTest {
     void crearReservaHorarioOcupadoRetorna409() throws Exception {
         // Arrange
         CrearReservaRequest request = new CrearReservaRequest(
-            2,
             10,
             LocalDate.of(2099, 1, 1),
             LocalTime.of(10, 30)
         );
         when(
             reservaService.crearReserva(
-                request.usuarioId(),
+                USUARIO_SESION,
                 request.horarioId(),
                 request.fecha(),
                 request.hora()
@@ -317,7 +327,7 @@ class ReservaControllerTest {
     @DisplayName("Cancelar una reserva ajena retorna 403")
     void cancelarReservaAjenaRetorna403() throws Exception {
         // Arrange
-        when(reservaService.cancelarReserva(100, 2)).thenThrow(
+        when(reservaService.cancelarReserva(100, USUARIO_SESION)).thenThrow(
             new ReservaException(
                 "No puedes cancelar una reserva que no te pertenece.",
                 HttpStatus.FORBIDDEN
@@ -326,10 +336,7 @@ class ReservaControllerTest {
 
         // Act
         mockMvc
-            .perform(
-                delete("/api/reservas/{reservaId}/cancelar", 100)
-                    .queryParam("usuarioId", "2")
-            )
+            .perform(delete("/api/reservas/{reservaId}/cancelar", 100))
             // Assert
             .andExpect(status().isForbidden())
             .andExpect(

@@ -1,5 +1,6 @@
 package com.udea.reservas.plataformareservas.reservas.controller;
 
+import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
 import com.udea.reservas.plataformareservas.reservas.dto.CrearReservaRequest;
 import com.udea.reservas.plataformareservas.reservas.dto.ReservaResponse;
 import com.udea.reservas.plataformareservas.reservas.dto.ReservaCanceladaResponse;
@@ -10,15 +11,19 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Requiere sesión iniciada (ver ApiSecurityConfiguration): el usuario de cada
+ * operación es el de la sesión, no un dato enviado por el cliente.
+ */
 @RestController
 @RequestMapping("/api/reservas")
 @RequiredArgsConstructor
@@ -27,9 +32,11 @@ public class ReservaController {
     private final ReservaService reservaService;
 
     @PostMapping
-    public ResponseEntity<ReservaResponse> crearReserva(@Valid @RequestBody CrearReservaRequest request) {
+    public ResponseEntity<ReservaResponse> crearReserva(
+            @AuthenticationPrincipal UserPrincipal usuario,
+            @Valid @RequestBody CrearReservaRequest request) {
         Reserva reserva = reservaService.crearReserva(
-                request.usuarioId(),
+                usuario.getId(),
                 request.horarioId(),
                 request.fecha(),
                 request.hora()
@@ -39,9 +46,9 @@ public class ReservaController {
 
     @DeleteMapping("/{reservaId}/cancelar")
     public ResponseEntity<ReservaCanceladaResponse> cancelarReserva(
-            @PathVariable Integer reservaId,
-            @RequestParam Integer usuarioId) {
-        Reserva reserva = reservaService.cancelarReserva(reservaId, usuarioId);
+            @AuthenticationPrincipal UserPrincipal usuario,
+            @PathVariable Integer reservaId) {
+        Reserva reserva = reservaService.cancelarReserva(reservaId, usuario.getId());
         return ResponseEntity.ok(new ReservaCanceladaResponse(
                 reserva.getId(),
                 reserva.getEstado(),

@@ -24,6 +24,7 @@ public class HorarioDisponibleServiceImpl implements HorarioDisponibleService {
     @Transactional
     public HorarioResponse crearHorario(
         Integer agendaId,
+        Integer usuarioId,
         CrearHorarioRequest request
     ) {
         Agenda agenda = agendaRepository
@@ -34,6 +35,14 @@ public class HorarioDisponibleServiceImpl implements HorarioDisponibleService {
                     HttpStatus.NOT_FOUND
                 )
             );
+
+        // Regla (DEF-01): solo el proveedor dueño de la agenda puede modificarla
+        if (!agenda.getProveedor().getUsuario().getId().equals(usuarioId)) {
+            throw new AgendaException(
+                "No puedes modificar una agenda que no te pertenece.",
+                HttpStatus.FORBIDDEN
+            );
+        }
 
         // Regla: la hora de fin debe ser posterior a la hora de inicio
         if (!request.horaFin().isAfter(request.horaInicio())) {

@@ -27,10 +27,9 @@ Característica: Iniciar sesión en la plataforma
       | ana@example.com   | clave-incorrect |
       | nadie@example.com | clave-segura-1  |
 
-  # DEF-07 abierto (severidad baja): el controlador recorta los espacios del correo,
-  # pero la validación @Email rechaza la solicitud con 400 antes de que eso ocurra.
-  # Se excluye con @pendiente hasta que el PO defina si se aceptan los espacios.
-  @positivo @CP-LOG-04 @P3 @pendiente @DEF-07
+  # DEF-15 corregido: el correo se recorta antes de validarlo, así que los espacios
+  # al inicio o al final ya no provocan un 400.
+  @positivo @CP-LOG-04 @P3 @DEF-15
   Escenario: Correo con espacios al inicio o al final
     Cuando inicio sesión con el correo " ana@example.com " y la contraseña "clave-segura-1"
     Entonces la respuesta tiene el código HTTP 200
@@ -40,3 +39,31 @@ Característica: Iniciar sesión en la plataforma
     Cuando inicio sesión sin token CSRF con el correo "ana@example.com" y la contraseña "clave-segura-1"
     Entonces la respuesta tiene el código HTTP 403
     Y el código de error es "CSRF_INVALID"
+
+  @excepcional @CP-LOG-05 @P2 @DEF-13
+  Escenario: La cuenta se bloquea tras cinco intentos fallidos aunque luego se use la contraseña correcta
+    Cuando intento iniciar sesión 5 veces con el correo "ana@example.com" y una contraseña incorrecta
+    Y inicio sesión con el correo "ana@example.com" y la contraseña "clave-segura-1"
+    Entonces la respuesta tiene el código HTTP 423
+    Y el código de error es "ACCOUNT_LOCKED"
+
+  @positivo @CP-LOG-06 @P2 @DEF-13
+  Escenario: Cuatro intentos fallidos no bloquean la cuenta
+    Cuando intento iniciar sesión 4 veces con el correo "ana@example.com" y una contraseña incorrecta
+    Y inicio sesión con el correo "ana@example.com" y la contraseña "clave-segura-1"
+    Entonces la respuesta tiene el código HTTP 200
+
+  @positivo @CP-LOG-07 @P2 @DEF-13
+  Escenario: Un inicio de sesión exitoso reinicia el contador de intentos fallidos
+    Cuando intento iniciar sesión 4 veces con el correo "ana@example.com" y una contraseña incorrecta
+    Y inicio sesión con el correo "ana@example.com" y la contraseña "clave-segura-1"
+    Y intento iniciar sesión 4 veces con el correo "ana@example.com" y una contraseña incorrecta
+    Y inicio sesión con el correo "ana@example.com" y la contraseña "clave-segura-1"
+    Entonces la respuesta tiene el código HTTP 200
+
+  @positivo @CP-LOG-08 @P2 @DEF-13
+  Escenario: Cuando vence el bloqueo la cuenta vuelve a iniciar sesión
+    Cuando intento iniciar sesión 5 veces con el correo "ana@example.com" y una contraseña incorrecta
+    Y el bloqueo de la cuenta "ana@example.com" ya venció
+    Y inicio sesión con el correo "ana@example.com" y la contraseña "clave-segura-1"
+    Entonces la respuesta tiene el código HTTP 200

@@ -2,6 +2,8 @@ package com.udea.reservas.plataformareservas.auth.service;
 
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import com.udea.reservas.plataformareservas.usuarios.repository.UserRepository;
+import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Locale;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -14,6 +16,7 @@ import org.springframework.stereotype.Service;
 public class DatabaseUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
+    private final Clock clock;
 
     @Override
     public UserDetails loadUserByUsername(String email) {
@@ -28,7 +31,8 @@ public class DatabaseUserDetailsService implements UserDetailsService {
             user.getName(),
             user.getEmail(),
             user.getRole(),
-            user.getPasswordHash()
+            user.getPasswordHash(),
+            !user.isLockedAt(LocalDateTime.now(clock))
         );
     }
 }

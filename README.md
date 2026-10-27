@@ -82,14 +82,30 @@ Las respuestas siguen el formato:
 ```
 En caso de validación fallida, `errors` incluye los mensajes por campo. No se almacena la confirmación de contraseña.
 
+## Inicio de sesión y autenticación
+
+Endpoints: `GET /api/v1/auth/csrf` y `POST /api/v1/auth/login` (cuerpo `{"email": "...", "password": "..."}`).
+
+1. Pedir el token con `GET /api/v1/auth/csrf` y guardar la cookie de sesión que devuelve.
+2. Iniciar sesión enviando ese token en la cabecera indicada por `headerName`. El correo se recorta y se pasa a minúsculas antes de validarse (DEF-15).
+3. Con esa misma sesión (cookie) y el mismo token en la cabecera se usan los endpoints protegidos.
+
+**Reservas y agendas (`/api/reservas/**`, `/api/agendas/**`) exigen sesión** (DEF-01):
+- Sin sesión: `401` con `errorCode` `UNAUTHENTICATED`.
+- Con sesión pero sin token CSRF válido en `POST`/`DELETE`: `403` con `errorCode` `CSRF_INVALID`.
+- El usuario sale siempre de la sesión: ya no se envía `usuarioId` en el cuerpo ni en la URL.
+
+**Bloqueo por intentos fallidos** (DEF-13): tras 5 contraseñas incorrectas seguidas la cuenta se bloquea 15 minutos y el inicio de sesión responde `423` con `errorCode` `ACCOUNT_LOCKED`, aunque se use la contraseña correcta. Un inicio de sesión exitoso reinicia el contador.
+
+> **Bases de datos existentes:** ejecutar una vez `backend/src/main/resources/db/migraciones/2026-10-25-bloqueo-inicio-sesion.sql` antes de desplegar (agrega `intentos_fallidos` y `bloqueado_hasta` a `usuario`; la app valida el esquema al arrancar).
+
 ## HU: Crear reserva
 
-Endpoint: `POST /api/reservas`
+Endpoint: `POST /api/reservas` (requiere sesión; el usuario es el de la sesión)
 
 **Request body:**
 ```json
 {
-  "usuarioId": 1,
   "horarioId": 1,
   "fecha": "2026-09-20",
   "hora": "09:00:00"
@@ -99,13 +115,14 @@ Endpoint: `POST /api/reservas`
 **Respuestas:**
 - `201 Created` — reserva creada exitosamente.
 - `400 Bad Request` — horario no habilitado por el proveedor (agenda inactiva), fecha que no cae en el día de la semana del horario, fecha/hora fuera del rango del horario, o fecha/hora ya pasada (según la zona `APP_TIME_ZONE`, por defecto `America/Bogota`).
-- `404 Not Found` — el usuario o el horario indicado no existe.
+- `401 Unauthorized` — no hay sesión iniciada.
+- `404 Not Found` — el usuario de la sesión o el horario indicado no existe.
 - `409 Conflict` — el horario ya tiene una reserva activa para esa fecha (evita doble reserva, también cuando dos solicitudes llegan al mismo tiempo).
 
 
 ## HU: Definir agenda y horarios disponibles
 
-Endpoint: `POST /api/agendas/{agendaId}/horarios`
+Endpoint: `POST /api/agendas/{agendaId}/horarios` (requiere sesión de proveedor dueño de la agenda)
 
 **Request body:**
 ```json
@@ -119,7 +136,10 @@ Endpoint: `POST /api/agendas/{agendaId}/horarios`
 **Respuestas:**
 - `200 OK` — bloque de disponibilidad guardado exitosamente.
 - `400 Bad Request` — el horario se solapa con otro bloque de la misma agenda y día (los bloques que solo se tocan, como 10:00–12:00 y 12:00–13:00, sí se permiten), la hora de fin no es posterior a la de inicio, `diaSemana` no está entre 0 (lunes) y 6 (domingo) o `duracionSlotMin` no es mayor que cero.
+- `401 Unauthorized` — no hay sesión iniciada.
+- `403 Forbidden` — la agenda pertenece a otro proveedor.
 - `404 Not Found` — la agenda indicada no existe.
+
 ## Estructura del repositorio
 
 ```

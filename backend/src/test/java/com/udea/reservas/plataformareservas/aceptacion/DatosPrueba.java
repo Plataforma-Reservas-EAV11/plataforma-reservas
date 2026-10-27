@@ -28,6 +28,7 @@ public class DatosPrueba {
     private final Clock clock;
 
     private final Map<String, Integer> usuariosPorNombre = new HashMap<>();
+    private final Map<String, String> emailsPorNombre = new HashMap<>();
     private final Map<String, Integer> reservasPorUsuario = new HashMap<>();
 
     private Integer agendaId;
@@ -50,6 +51,7 @@ public class DatosPrueba {
             rol
         );
         usuariosPorNombre.put(nombre, id);
+        emailsPorNombre.put(nombre, email);
         return id;
     }
 
@@ -62,8 +64,26 @@ public class DatosPrueba {
         return usuariosPorNombre.get(nombre);
     }
 
+    public String emailDeUsuario(String nombre) {
+        return emailsPorNombre.get(nombre);
+    }
+
+    public void eliminarUsuario(String nombre) {
+        jdbc.update("DELETE FROM usuario WHERE id = ?", idDeUsuario(nombre));
+    }
+
+    /** Simula que ya pasó el tiempo de bloqueo (un día cubre cualquier diferencia de zona horaria con la base). */
+    public void vencerBloqueo(String email) {
+        jdbc.update("UPDATE usuario SET bloqueado_hasta = now() - interval '1 day' WHERE email = ?", email);
+    }
+
     public void crearProveedorConAgendaActiva() {
-        Integer usuarioId = crearUsuario("Proveedor", "proveedor@test.com", CONTRASENA_POR_DEFECTO, "proveedor");
+        agendaId = crearProveedorConAgenda("Proveedor", "proveedor@test.com");
+    }
+
+    /** Crea un proveedor (cuenta, negocio, recurso y agenda activa) y devuelve el id de su agenda. */
+    public Integer crearProveedorConAgenda(String nombre, String email) {
+        Integer usuarioId = crearUsuario(nombre, email, CONTRASENA_POR_DEFECTO, "proveedor");
         Integer proveedorId = jdbc.queryForObject(
             "INSERT INTO proveedor (usuario_id, nombre_negocio) VALUES (?, 'Barbería Style') RETURNING id",
             Integer.class,
@@ -74,7 +94,7 @@ public class DatosPrueba {
             Integer.class,
             proveedorId
         );
-        agendaId = jdbc.queryForObject(
+        return jdbc.queryForObject(
             "INSERT INTO agenda (proveedor_id, recurso_id, nombre, activa) VALUES (?, ?, 'Agenda principal', true) RETURNING id",
             Integer.class,
             proveedorId,
@@ -167,6 +187,10 @@ public class DatosPrueba {
 
     public int contarBloquesDeLaAgenda() {
         return contar("SELECT count(*) FROM horario_disponible WHERE agenda_id = ?", agendaId);
+    }
+
+    public int contarBloquesDeLaAgenda(Integer idAgenda) {
+        return contar("SELECT count(*) FROM horario_disponible WHERE agenda_id = ?", idAgenda);
     }
 
     public int contarUsuarios() {

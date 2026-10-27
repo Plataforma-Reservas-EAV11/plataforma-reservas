@@ -5,7 +5,10 @@ CREATE TABLE usuario (
                          email VARCHAR(150) NOT NULL UNIQUE,
                          password_hash VARCHAR(255) NOT NULL,
                          rol VARCHAR(30) NOT NULL DEFAULT 'usuario',
-                         created_at TIMESTAMP NOT NULL DEFAULT now()
+                         created_at TIMESTAMP NOT NULL DEFAULT now(),
+                         -- bloqueo temporal por intentos fallidos de inicio de sesión (DEF-13)
+                         intentos_fallidos INTEGER NOT NULL DEFAULT 0,
+                         bloqueado_hasta TIMESTAMP
 );
 
 -- proveedor

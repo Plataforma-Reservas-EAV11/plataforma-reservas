@@ -80,8 +80,10 @@ Característica: Crear una reserva
     Y el mensaje de la respuesta es "No se puede reservar en una fecha u hora que ya pasó."
 
   @excepcional @CP-RES-05 @P3
-  Escenario: Usuario inexistente
-    Cuando un usuario inexistente reserva ese horario a las "09:00:00"
+  Escenario: Usuario de la sesión que ya no existe
+    Dado que "Ana" inició sesión
+    Y la cuenta de "Ana" fue eliminada
+    Cuando "Ana" reserva ese horario a las "09:00:00"
     Entonces la respuesta tiene el código HTTP 404
     Y el mensaje de la respuesta es "El usuario no existe."
 
@@ -90,6 +92,14 @@ Característica: Crear una reserva
     Cuando "Ana" reserva el horario inexistente 9999 a las "09:00:00"
     Entonces la respuesta tiene el código HTTP 404
     Y el mensaje de la respuesta es "El horario no existe."
+
+  # DEF-01 corregido: reservar exige sesión iniciada.
+  @excepcional @CP-19 @RSK-01 @P1 @DEF-01
+  Escenario: Reservar sin haber iniciado sesión
+    Cuando intento reservar ese horario a las "09:00:00" sin haber iniciado sesión
+    Entonces la respuesta tiene el código HTTP 401
+    Y el código de error es "UNAUTHENTICATED"
+    Y el horario tiene 0 reservas activas en esa fecha
 
   @excepcional @CP-05 @RSK-10 @P2
   Escenario: Solicitud sin horario seleccionado ni datos obligatorios

@@ -1,6 +1,7 @@
 package com.udea.reservas.plataformareservas.auth.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -18,7 +19,8 @@ class UserPrincipalTest {
             "Ana",
             "ana@example.com",
             "usuario",
-            "hashed-secret"
+            "hashed-secret",
+            true
         );
 
         // Act
@@ -40,6 +42,26 @@ class UserPrincipalTest {
     }
 
     @Test
+    void lockedAccountIsReportedAsLocked() {
+        // Arrange
+        UserPrincipal principal = new UserPrincipal(
+            7,
+            "Ana",
+            "ana@example.com",
+            "usuario",
+            "hashed-secret",
+            false
+        );
+
+        // Act
+        boolean nonLocked = principal.isAccountNonLocked();
+
+        // Assert
+        assertFalse(nonLocked);
+        assertTrue(principal.isEnabled());
+    }
+
+    @Test
     void eraseCredentialsRemovesPassword() {
         // Arrange
         UserPrincipal principal = new UserPrincipal(
@@ -47,7 +69,8 @@ class UserPrincipalTest {
             "Ana",
             "ana@example.com",
             "usuario",
-            "hashed-secret"
+            "hashed-secret",
+            true
         );
 
         // Act

@@ -89,17 +89,31 @@ public class PasosAutenticacion {
 
     @Cuando("inicio sesión con el correo {string} y la contraseña {string}")
     public void inicioSesion(String email, String contrasena) {
-        JsonNode csrf = api.json(api.get("/api/v1/auth/csrf"));
-        api.postJson(
-            RUTA_LOGIN,
-            Map.of("email", email, "password", contrasena),
-            Map.of(csrf.get("headerName").asString(), csrf.get("token").asString())
-        );
+        api.iniciarSesion("actual", email, contrasena);
     }
 
     @Cuando("inicio sesión sin token CSRF con el correo {string} y la contraseña {string}")
     public void inicioSesionSinCsrf(String email, String contrasena) {
+        api.sinSesion();
         api.postJson(RUTA_LOGIN, Map.of("email", email, "password", contrasena));
+    }
+
+    @Dado("que inicié sesión con una cuenta de usuario")
+    public void inicieSesionConUnaCuentaDeUsuario() {
+        datos.crearUsuario("Sesion");
+        api.iniciarSesion("Sesion", datos.emailDeUsuario("Sesion"), DatosPrueba.CONTRASENA_POR_DEFECTO);
+    }
+
+    @Cuando("intento iniciar sesión {int} veces con el correo {string} y una contraseña incorrecta")
+    public void intentoIniciarSesionVariasVeces(int intentos, String email) {
+        for (int i = 0; i < intentos; i++) {
+            api.iniciarSesion("fallido-" + i, email, "contrasena-incorrecta");
+        }
+    }
+
+    @Y("el bloqueo de la cuenta {string} ya venció")
+    public void elBloqueoYaVencio(String email) {
+        datos.vencerBloqueo(email);
     }
 
     @Y("la respuesta contiene los datos públicos del usuario {string}")

@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -27,6 +28,7 @@ import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.web.context.SecurityContextRepository;
@@ -59,7 +61,7 @@ class LoginControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(userController)
-            .setControllerAdvice(new GlobalExceptionHandler())
+            .setControllerAdvice(new AuthExceptionHandler(), new GlobalExceptionHandler())
             .build();
         objectMapper = new ObjectMapper();
     }
@@ -75,7 +77,8 @@ class LoginControllerTest {
             "Ana",
             "ana@example.com",
             role,
-            "$2a$hashed-value"
+            "$2a$hashed-value",
+            true
         );
         Authentication authentication =
             UsernamePasswordAuthenticationToken.authenticated(
@@ -146,6 +149,77 @@ class LoginControllerTest {
             any(),
             any()
         );
+    }
+
+    @Test
+    void loginReturnsLockedWhenTheAccountIsTemporarilyBlocked()
+        throws Exception {
+        // Arrange
+        when(authenticationManager.authenticate(any(Authentication.class)))
+            .thenThrow(new LockedException("User account is locked"));
+
+        // Act
+        mockMvc.perform(
+            post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new LoginPayload("ana@example.com", "secret")
+                    )
+                )
+        )
+            // Assert
+            .andExpect(status().isLocked())
+            .andExpect(jsonPath("$.errorCode").value("ACCOUNT_LOCKED"))
+            .andExpect(jsonPath("$.message").value(
+                "La cuenta está bloqueada temporalmente por demasiados intentos fallidos. Intenta de nuevo más tarde."
+            ));
+
+        verify(securityContextRepository, never()).saveContext(
+            any(),
+            any(),
+            any()
+        );
+    }
+
+    @Test
+    void loginTrimsAndLowercasesTheEmailBeforeValidatingIt() throws Exception {
+        // Arrange (DEF-15): el correo con espacios no debe rechazarse con 400
+        UserPrincipal principal = new UserPrincipal(
+            7,
+            "Ana",
+            "ana@example.com",
+            "usuario",
+            "$2a$hashed-value",
+            true
+        );
+        when(authenticationManager.authenticate(any(Authentication.class)))
+            .thenReturn(
+                UsernamePasswordAuthenticationToken.authenticated(
+                    principal,
+                    null,
+                    List.of()
+                )
+            );
+
+        // Act
+        mockMvc.perform(
+            post("/api/v1/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsString(
+                        new LoginPayload("  Ana@Example.COM ", "secret")
+                    )
+                )
+        )
+            // Assert
+            .andExpect(status().isOk());
+
+        ArgumentCaptor<Authentication> captor = ArgumentCaptor.forClass(
+            Authentication.class
+        );
+        verify(authenticationManager).authenticate(captor.capture());
+        assertEquals("ana@example.com", captor.getValue().getName());
     }
 
     @Test

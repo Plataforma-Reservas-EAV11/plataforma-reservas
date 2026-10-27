@@ -9,12 +9,14 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+import com.udea.reservas.plataformareservas.TestAuthentication;
 import com.udea.reservas.plataformareservas.agendas.dto.CrearHorarioRequest;
 import com.udea.reservas.plataformareservas.agendas.dto.HorarioResponse;
 import com.udea.reservas.plataformareservas.agendas.exception.AgendaException;
 import com.udea.reservas.plataformareservas.agendas.service.HorarioDisponibleService;
 import com.udea.reservas.plataformareservas.common.exception.GlobalExceptionHandler;
 import java.time.LocalTime;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -24,12 +26,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.ObjectMapper;
 
 @ExtendWith(MockitoExtension.class)
 class HorarioDisponibleControllerTest {
+
+    // Identidad de la sesión: el controlador la toma de aquí, no de la solicitud
+    private static final int USUARIO_SESION = 1;
 
     @Mock
     private HorarioDisponibleService horarioDisponibleService;
@@ -42,12 +48,21 @@ class HorarioDisponibleControllerTest {
 
     @BeforeEach
     void setup() {
+        TestAuthentication.authenticateAs(
+            TestAuthentication.principal(USUARIO_SESION)
+        );
         this.mockMvc = MockMvcBuilders.standaloneSetup(
             horarioDisponibleController
         )
             .setControllerAdvice(new GlobalExceptionHandler())
+            .setCustomArgumentResolvers(TestAuthentication.argumentResolver())
             .build();
         this.objectMapper = new ObjectMapper();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -74,6 +89,7 @@ class HorarioDisponibleControllerTest {
         when(
             horarioDisponibleService.crearHorario(
                 eq(agendaId),
+                eq(USUARIO_SESION),
                 any(CrearHorarioRequest.class)
             )
         ).thenReturn(response);
@@ -103,7 +119,7 @@ class HorarioDisponibleControllerTest {
                 )
             );
 
-        verify(horarioDisponibleService).crearHorario(agendaId, request);
+        verify(horarioDisponibleService).crearHorario(agendaId, USUARIO_SESION, request);
     }
 
     @Test
@@ -124,7 +140,7 @@ class HorarioDisponibleControllerTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST"));
 
-        verify(horarioDisponibleService, never()).crearHorario(anyInt(), any());
+        verify(horarioDisponibleService, never()).crearHorario(anyInt(), any(), any());
     }
 
     @Test
@@ -146,7 +162,7 @@ class HorarioDisponibleControllerTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST"));
 
-        verify(horarioDisponibleService, never()).crearHorario(anyInt(), any());
+        verify(horarioDisponibleService, never()).crearHorario(anyInt(), any(), any());
     }
 
     @Test
@@ -171,7 +187,7 @@ class HorarioDisponibleControllerTest {
                 jsonPath("$.errors.horaFin").value("La hora de fin es obligatoria")
             );
 
-        verify(horarioDisponibleService, never()).crearHorario(anyInt(), any());
+        verify(horarioDisponibleService, never()).crearHorario(anyInt(), any(), any());
     }
 
     @Test
@@ -197,7 +213,7 @@ class HorarioDisponibleControllerTest {
             .andExpect(jsonPath("$.errors.diaSemana").exists())
             .andExpect(jsonPath("$.errors.duracionSlotMin").exists());
 
-        verify(horarioDisponibleService, never()).crearHorario(anyInt(), any());
+        verify(horarioDisponibleService, never()).crearHorario(anyInt(), any(), any());
     }
 
     @Test
@@ -210,7 +226,7 @@ class HorarioDisponibleControllerTest {
             LocalTime.of(12, 0),
             30
         );
-        when(horarioDisponibleService.crearHorario(99, request)).thenThrow(
+        when(horarioDisponibleService.crearHorario(99, USUARIO_SESION, request)).thenThrow(
             new AgendaException("La agenda con ID 99 no existe.", HttpStatus.NOT_FOUND)
         );
 
@@ -236,7 +252,7 @@ class HorarioDisponibleControllerTest {
             LocalTime.of(13, 0),
             30
         );
-        when(horarioDisponibleService.crearHorario(3, request)).thenThrow(
+        when(horarioDisponibleService.crearHorario(3, USUARIO_SESION, request)).thenThrow(
             new AgendaException(
                 "El horario ya tiene disponibilidad definida. No se pueden solapar bloques.",
                 HttpStatus.BAD_REQUEST
@@ -281,6 +297,37 @@ class HorarioDisponibleControllerTest {
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.errorCode").value("INVALID_PARAMETER"));
 
-        verify(horarioDisponibleService, never()).crearHorario(anyInt(), any());
+        verify(horarioDisponibleService, never()).crearHorario(anyInt(), any(), any());
+    }
+
+    @Test
+    @DisplayName("Agregar horario a la agenda de otro proveedor retorna 403 con el mensaje del servicio")
+    void agregarHorarioAgendaAjena() throws Exception {
+        // Arrange
+        CrearHorarioRequest request = new CrearHorarioRequest(
+            1,
+            LocalTime.of(8, 0),
+            LocalTime.of(12, 0),
+            30
+        );
+        when(horarioDisponibleService.crearHorario(4, USUARIO_SESION, request)).thenThrow(
+            new AgendaException(
+                "No puedes modificar una agenda que no te pertenece.",
+                HttpStatus.FORBIDDEN
+            )
+        );
+
+        // Act
+        mockMvc
+            .perform(
+                post("/api/agendas/{agendaId}/horarios", 4)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsString(request))
+            )
+            // Assert
+            .andExpect(status().isForbidden())
+            .andExpect(
+                content().string("No puedes modificar una agenda que no te pertenece.")
+            );
     }
 }
