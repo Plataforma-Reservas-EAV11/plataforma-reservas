@@ -5,9 +5,21 @@ on:
       - main
   pull_request:
     types: [opened, synchronize, reopened]
+
+# --- NUEVO: permisos mínimos y umbrales del resumen de métricas ---
+permissions:
+  contents: read
+
+env:
+  PROJECT_KEY: Plataforma-Reservas-EAV11_plataforma-reservas   # debe coincidir con sonar.projectKey
+  MIN_COVERAGE: 65        # % cobertura mínima
+  MAX_DEBT_MIN: 960       # 2 días = 2 x 8 h x 60 min
+  MAX_COMPLEXITY: 50      # debe ser menor a este valor
+  MAX_ISSUES: 0           # máx. hallazgos abiertos de severidad Minor o superior
+
 jobs:
   build:
-    name: Análisis de código
+    name: Build and analyze
     runs-on: ubuntu-latest
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -40,6 +52,7 @@ jobs:
       # que dispara Dependabot. Sin token se omite el análisis en lugar de fallar;
       # con token se espera el Quality Gate y el job falla si no se aprueba.
       - name: Analyze with SonarCloud
+        id: sonar   # NUEVO: id para saber si este paso se ejecutó
         if: env.SONAR_TOKEN != ''
         run: >
           mvn -B
@@ -57,3 +70,63 @@ jobs:
             backend/target/site/jacoco-it/
             backend/target/surefire-reports/
             backend/target/failsafe-reports/
+
+      # --- NUEVO: resumen de métricas con umbrales en la pestaña Summary ---
+      # Corre aunque el Quality Gate falle (el análisis ya se procesó gracias a
+      # qualitygate.wait=true), pero no si Sonar se omitió o si falló antes
+      # el build/test. Es informativo: nunca hace fallar el job.
+      - name: Resumen de métricas Sonar (informativo, no bloquea)
+        if: ${{ always() && steps.sonar.outcome != 'skipped' && steps.sonar.outcome != '' && github.event_name == 'push' && github.ref_name == github.event.repository.default_branch }}
+        continue-on-error: true
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          API=https://sonarcloud.io/api
+
+          RESP=$(curl -s -u "$SONAR_TOKEN:" \
+            "$API/measures/component?component=$PROJECT_KEY&branch=$BRANCH&metricKeys=coverage,sqale_index,complexity")
+          if ! echo "$RESP" | jq -e '.component' >/dev/null 2>&1; then
+            echo "::warning::Error de Sonar: $RESP"
+            exit 0
+          fi
+
+          M=$(echo "$RESP" | jq -r '.component.measures[] | "\(.metric)=\(.value)"')
+          get() { echo "$M" | grep "^$1=" | cut -d= -f2; }
+
+          COV=$(get coverage)
+          DEBT=$(get sqale_index)
+          CX=$(get complexity)
+
+          RESP_V=$(curl -s -u "$SONAR_TOKEN:" \
+            "$API/issues/search?componentKeys=$PROJECT_KEY&branch=$BRANCH&types=VULNERABILITY&severities=CRITICAL,BLOCKER&resolved=false&ps=1")
+          VULN=$(echo "$RESP_V" | jq -r '.total // "N/A"')
+
+          RESP_I=$(curl -s -u "$SONAR_TOKEN:" \
+            "$API/issues/search?componentKeys=$PROJECT_KEY&branch=$BRANCH&severities=MINOR,MAJOR,CRITICAL,BLOCKER&resolved=false&ps=1")
+          ISS=$(echo "$RESP_I" | jq -r '.total // "N/A"')
+
+          ok()  { echo "✅"; }
+          bad() { echo "❌"; }
+
+          COV_S=$(awk "BEGIN{exit !(${COV:-0} >= $MIN_COVERAGE)}" && ok || bad)
+          DEBT_S=$([ -n "$DEBT" ] && [ "$DEBT" -le "$MAX_DEBT_MIN" ] && ok || bad)
+          CX_S=$([ -n "$CX" ] && [ "$CX" -lt "$MAX_COMPLEXITY" ] && ok || bad)
+          VULN_S=$([ "$VULN" = "0" ] && ok || bad)
+          ISS_S=$([ "$ISS" != "N/A" ] && [ "$ISS" -le "$MAX_ISSUES" ] && ok || bad)
+
+          {
+            echo "### Resultado de calidad"
+            echo "| Criterio | Valor | Meta | Estado |"
+            echo "|---|---|---|---|"
+            echo "| Cobertura | ${COV:-N/A}% | ≥ ${MIN_COVERAGE}% | $COV_S |"
+            echo "| Deuda técnica | ${DEBT:-N/A} min | ≤ ${MAX_DEBT_MIN} min | $DEBT_S |"
+            echo "| Complejidad ciclomática | ${CX:-N/A} | < ${MAX_COMPLEXITY} | $CX_S |"
+            echo "| Hallazgos severidad Minor o superior | $ISS | ≤ ${MAX_ISSUES} | $ISS_S |"
+            echo "| Vulnerabilidades críticas | $VULN | 0 | $VULN_S |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if echo "$COV_S$DEBT_S$CX_S$ISS_S$VULN_S" | grep -q "❌"; then
+            echo "::warning title=Quality gates::Algunos criterios no se cumplen. Revisa la tabla en Summary."
+          fi
+
+          exit 0
