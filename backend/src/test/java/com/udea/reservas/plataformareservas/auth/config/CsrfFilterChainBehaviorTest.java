@@ -71,6 +71,7 @@ class CsrfFilterChainBehaviorTest {
         @RequestMapping
         @ResponseStatus(HttpStatus.NO_CONTENT)
         void atender() {
+            // Intentionally empty: reaching this handler proves the request passed the security filters.
         }
     }
 
