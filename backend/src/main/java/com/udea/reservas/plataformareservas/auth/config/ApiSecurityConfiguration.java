@@ -36,7 +36,7 @@ public class ApiSecurityConfiguration {
             http,
             securityContextRepository,
             errorHandler,
-            SecurityChains::isUnsafeMethodWithSession
+            SecurityChains.unauthenticatedAs401(errorHandler)
         );
     }
 }

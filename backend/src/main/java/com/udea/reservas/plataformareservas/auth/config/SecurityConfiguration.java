@@ -62,7 +62,7 @@ public class SecurityConfiguration {
             http,
             securityContextRepository,
             errorHandler,
-            SecurityChains::isUnsafeMethod
+            errorHandler
         );
     }
 }

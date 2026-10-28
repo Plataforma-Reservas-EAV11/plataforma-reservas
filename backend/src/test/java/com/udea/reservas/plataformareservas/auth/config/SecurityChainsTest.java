@@ -1,15 +1,16 @@
 package com.udea.reservas.plataformareservas.auth.config;
 
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.udea.reservas.plataformareservas.TestAuthentication;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import tools.jackson.databind.ObjectMapper;
 
 class SecurityChainsTest {
 
@@ -18,30 +19,27 @@ class SecurityChainsTest {
         SecurityContextHolder.clearContext();
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = { "GET", "HEAD", "TRACE", "OPTIONS" })
-    void safeMethodsDoNotRequireCsrf(String method) {
-        assertFalse(SecurityChains.isUnsafeMethod(new MockHttpServletRequest(method, "/x")));
-    }
-
-    @ParameterizedTest
-    @ValueSource(strings = { "POST", "PUT", "PATCH", "DELETE" })
-    void writeMethodsRequireCsrf(String method) {
-        assertTrue(SecurityChains.isUnsafeMethod(new MockHttpServletRequest(method, "/x")));
-    }
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final AccessDeniedHandler handler =
+        SecurityChains.unauthenticatedAs401(new JsonSecurityErrorHandler(objectMapper));
 
     @Test
-    void csrfIsNotRequiredWithoutASession() {
+    void csrfRejectionWithoutASessionRespondsUnauthorized() throws Exception {
         SecurityContextHolder.clearContext();
+        MockHttpServletResponse response = new MockHttpServletResponse();
 
-        assertFalse(SecurityChains.isUnsafeMethodWithSession(new MockHttpServletRequest("POST", "/x")));
+        handler.handle(new MockHttpServletRequest("POST", "/x"), response, new AccessDeniedException("x"));
+
+        assertEquals(401, response.getStatus());
     }
 
     @Test
-    void csrfIsRequiredForWritesWithAnAuthenticatedSession() {
+    void csrfRejectionWithAnAuthenticatedSessionRespondsForbidden() throws Exception {
         TestAuthentication.authenticateAs(TestAuthentication.principal(1));
+        MockHttpServletResponse response = new MockHttpServletResponse();
 
-        assertTrue(SecurityChains.isUnsafeMethodWithSession(new MockHttpServletRequest("DELETE", "/x")));
-        assertFalse(SecurityChains.isUnsafeMethodWithSession(new MockHttpServletRequest("GET", "/x")));
+        handler.handle(new MockHttpServletRequest("DELETE", "/x"), response, new AccessDeniedException("x"));
+
+        assertEquals(403, response.getStatus());
     }
 }
