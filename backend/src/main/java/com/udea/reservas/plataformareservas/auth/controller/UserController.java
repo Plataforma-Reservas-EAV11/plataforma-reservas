@@ -6,33 +6,31 @@ import com.udea.reservas.plataformareservas.auth.dto.LoginResponse;
 import com.udea.reservas.plataformareservas.auth.dto.UserRegistrationRequest;
 import com.udea.reservas.plataformareservas.auth.service.UserService;
 import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
-import com.udea.reservas.plataformareservas.common.ApiErrorResponse;
 import com.udea.reservas.plataformareservas.common.ApiSuccessResponse;
 import com.udea.reservas.plataformareservas.common.dto.ApiResponseDto;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import java.util.List;
-import java.util.Locale;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.security.web.context.SecurityContextRepository;
-import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Las respuestas de error de este controlador (credenciales incorrectas, cuenta
+ * bloqueada y correo duplicado) las construye {@code AuthExceptionHandler}.
+ */
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
@@ -57,12 +55,10 @@ public class UserController {
         HttpServletRequest request,
         HttpServletResponse response
     ) {
-        String normalizedEmail = loginRequest.email()
-            .trim()
-            .toLowerCase(Locale.ROOT);
+        // El correo ya llega recortado y en minúsculas (ver LoginRequest).
         Authentication authentication = authenticationManager.authenticate(
             UsernamePasswordAuthenticationToken.unauthenticated(
-                normalizedEmail,
+                loginRequest.email(),
                 loginRequest.password()
             )
         );
@@ -70,9 +66,10 @@ public class UserController {
         SecurityContext securityContext = SecurityContextHolder.createEmptyContext();
         securityContext.setAuthentication(authentication);
 
-        if (request.getSession(false) != null) {
-            request.changeSessionId();
-        }
+        // Protección contra fijación de sesión: el identificador siempre se
+        // renueva al autenticarse (getSession(true) garantiza que exista una).
+        request.getSession(true);
+        request.changeSessionId();
 
         securityContextRepository.saveContext(
             securityContext,
@@ -81,11 +78,7 @@ public class UserController {
         );
         SecurityContextHolder.setContext(securityContext);
 
-        if (!(authentication.getPrincipal() instanceof UserPrincipal principal)) {
-            throw new IllegalStateException(
-                "The authenticated principal is not a UserPrincipal."
-            );
-        }
+        UserPrincipal principal = (UserPrincipal) authentication.getPrincipal();
         LoginResponse loginResponse = new LoginResponse(
             principal.getId(),
             principal.getName(),
@@ -100,19 +93,6 @@ public class UserController {
         );
     }
 
-    @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<ApiErrorResponse> handleInvalidCredentials(
-        BadCredentialsException exception
-    ) {
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-            ApiErrorResponse.of(
-                "INVALID_CREDENTIALS",
-                "El correo electrónico o la contraseña no son correctos.",
-                List.of()
-            )
-        );
-    }
-
     @PostMapping("/register")
     public ResponseEntity<ApiResponseDto> register(
         @Valid @RequestBody UserRegistrationRequest registrationRequest
@@ -121,17 +101,6 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(
             ApiResponseDto.success(
                 "Registro exitoso. Tu cuenta fue creada."
-            )
-        );
-    }
-
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<ApiResponseDto> handleRegistrationConflict(
-        DataIntegrityViolationException exception
-    ) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(
-            ApiResponseDto.failure(
-                "El correo electrónico ya está registrado."
             )
         );
     }

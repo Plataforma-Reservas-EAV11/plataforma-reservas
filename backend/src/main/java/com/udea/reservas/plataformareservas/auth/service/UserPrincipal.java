@@ -2,47 +2,28 @@ package com.udea.reservas.plataformareservas.auth.service;
 
 import java.util.Collection;
 import java.util.List;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
 import org.springframework.security.core.CredentialsContainer;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+/**
+ * Identidad autenticada que viaja en la sesión. Los accesores (getId, getName,
+ * getEmail, getRole, getPassword e isAccountNonLocked) los genera Lombok; las
+ * banderas de cuenta no expirada, credenciales vigentes y cuenta habilitada
+ * usan los valores por defecto de {@link UserDetails} (siempre verdaderos).
+ */
+@Getter
+@AllArgsConstructor
 public final class UserPrincipal implements UserDetails, CredentialsContainer {
 
     private final Integer id;
     private final String name;
     private final String email;
     private final String role;
-    private String passwordHash;
-
-    public UserPrincipal(
-        Integer id,
-        String name,
-        String email,
-        String role,
-        String passwordHash
-    ) {
-        this.id = id;
-        this.name = name;
-        this.email = email;
-        this.role = role;
-        this.passwordHash = passwordHash;
-    }
-
-    public Integer getId() {
-        return id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public String getRole() {
-        return role;
-    }
+    private String password;
+    private final boolean accountNonLocked;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -50,37 +31,12 @@ public final class UserPrincipal implements UserDetails, CredentialsContainer {
     }
 
     @Override
-    public String getPassword() {
-        return passwordHash;
-    }
-
-    @Override
     public String getUsername() {
-        return getEmail();
-    }
-
-    @Override
-    public boolean isAccountNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isAccountNonLocked() {
-        return true;
-    }
-
-    @Override
-    public boolean isCredentialsNonExpired() {
-        return true;
-    }
-
-    @Override
-    public boolean isEnabled() {
-        return true;
+        return email;
     }
 
     @Override
     public void eraseCredentials() {
-        passwordHash = null;
+        password = null;
     }
 }

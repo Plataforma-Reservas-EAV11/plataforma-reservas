@@ -91,3 +91,19 @@ Característica: Definir agenda y horarios disponibles
     Cuando defino un bloque válido en la agenda 9999
     Entonces la respuesta tiene el código HTTP 404
     Y el mensaje de la respuesta es "La agenda con ID 9999 no existe."
+
+  # DEF-01 corregido: definir horarios exige sesión y que la agenda sea del proveedor.
+  @excepcional @CP-03 @RSK-04 @P1 @DEF-01
+  Escenario: Definir un bloque sin haber iniciado sesión
+    Cuando intento definir un bloque en mi agenda sin haber iniciado sesión
+    Entonces la respuesta tiene el código HTTP 401
+    Y el código de error es "UNAUTHENTICATED"
+    Y mi agenda tiene 0 bloques guardados
+
+  @excepcional @CP-03 @RSK-04 @P1 @DEF-01
+  Escenario: Definir un bloque en la agenda de otro proveedor
+    Dado existe otro proveedor con su propia agenda
+    Cuando intento definir un bloque en la agenda del otro proveedor
+    Entonces la respuesta tiene el código HTTP 403
+    Y el mensaje de la respuesta es "No puedes modificar una agenda que no te pertenece."
+    Y la agenda del otro proveedor tiene 0 bloques guardados

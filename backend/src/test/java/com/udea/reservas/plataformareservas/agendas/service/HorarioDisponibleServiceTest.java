@@ -32,6 +32,9 @@ import org.springframework.http.HttpStatus;
 @ExtendWith(MockitoExtension.class)
 class HorarioDisponibleServiceTest {
 
+    // Usuario dueño del proveedor de la agenda que arma crearAgenda()
+    private static final int USUARIO_DUENIO = 1;
+
     @Mock
     private IAgendaRepository agendaRepository;
 
@@ -74,6 +77,7 @@ class HorarioDisponibleServiceTest {
         // Act
         HorarioResponse resultado = horarioDisponibleService.crearHorario(
             agenda.getId(),
+            USUARIO_DUENIO,
             request
         );
 
@@ -117,7 +121,7 @@ class HorarioDisponibleServiceTest {
 
         // Act
         Throwable thrown = catchThrowable(() ->
-            horarioDisponibleService.crearHorario(7, request)
+            horarioDisponibleService.crearHorario(7, USUARIO_DUENIO, request)
         );
 
         // Assert
@@ -145,7 +149,7 @@ class HorarioDisponibleServiceTest {
 
         // Act
         Throwable thrown = catchThrowable(() ->
-            horarioDisponibleService.crearHorario(1, request)
+            horarioDisponibleService.crearHorario(1, USUARIO_DUENIO, request)
         );
 
         // Assert
@@ -175,7 +179,7 @@ class HorarioDisponibleServiceTest {
         );
 
         // Act
-        HorarioResponse resultado = horarioDisponibleService.crearHorario(1, request);
+        HorarioResponse resultado = horarioDisponibleService.crearHorario(1, USUARIO_DUENIO, request);
 
         // Assert
         assertThat(resultado.horaFin()).isEqualTo(LocalTime.of(10, 1));
@@ -205,7 +209,7 @@ class HorarioDisponibleServiceTest {
 
         // Act
         Throwable thrown = catchThrowable(() ->
-            horarioDisponibleService.crearHorario(1, request)
+            horarioDisponibleService.crearHorario(1, USUARIO_DUENIO, request)
         );
 
         // Assert
@@ -235,7 +239,7 @@ class HorarioDisponibleServiceTest {
         );
 
         // Act
-        horarioDisponibleService.crearHorario(1, request);
+        horarioDisponibleService.crearHorario(1, USUARIO_DUENIO, request);
 
         // Assert
         verify(horarioDisponibleRepository)
@@ -245,6 +249,36 @@ class HorarioDisponibleServiceTest {
                 LocalTime.of(13, 0),
                 LocalTime.of(12, 0)
             );
+    }
+
+    @Test
+    @DisplayName("DEF-01: rechaza con 403 definir horarios en la agenda de otro proveedor")
+    void rechazaAgendaDeOtroProveedor() {
+        // Arrange
+        Agenda agenda = crearAgenda();
+        int otroUsuario = USUARIO_DUENIO + 1;
+        when(agendaRepository.findById(agenda.getId())).thenReturn(
+            Optional.of(agenda)
+        );
+        CrearHorarioRequest request = new CrearHorarioRequest(
+            2,
+            LocalTime.of(10, 30),
+            LocalTime.of(12, 0),
+            90
+        );
+
+        // Act
+        Throwable thrown = catchThrowable(() ->
+            horarioDisponibleService.crearHorario(agenda.getId(), otroUsuario, request)
+        );
+
+        // Assert
+        assertThat(thrown)
+            .isInstanceOf(AgendaException.class)
+            .hasMessage("No puedes modificar una agenda que no te pertenece.");
+        assertThat(((AgendaException) thrown).getStatus())
+            .isEqualTo(HttpStatus.FORBIDDEN);
+        verify(horarioDisponibleRepository, never()).save(any());
     }
 
     private Agenda crearAgenda() {

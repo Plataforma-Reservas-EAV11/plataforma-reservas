@@ -43,42 +43,58 @@ public class PasosReservas {
 
     @Cuando("{string} reserva ese horario a las {string}")
     public void reservaEseHorario(String nombre, String hora) {
-        reservar(datos.idDeUsuario(nombre), datos.horarioId(), datos.fechaHorario(), hora);
+        autenticarComo(nombre);
+        reservar(datos.horarioId(), datos.fechaHorario(), hora);
         guardarReservaCreada(nombre);
     }
 
     @Cuando("{string} reserva ese horario para ayer a las {string}")
     public void reservaParaAyer(String nombre, String hora) {
-        LocalDate ayer = datos.hoy().minusDays(1);
-        reservar(datos.idDeUsuario(nombre), datos.horarioId(), ayer, hora);
+        autenticarComo(nombre);
+        reservar(datos.horarioId(), datos.hoy().minusDays(1), hora);
     }
 
     @Cuando("{string} reserva ese horario un día de la semana distinto a las {string}")
     public void reservaOtroDia(String nombre, String hora) {
-        reservar(datos.idDeUsuario(nombre), datos.horarioId(), datos.fechaHorario().plusDays(1), hora);
+        autenticarComo(nombre);
+        reservar(datos.horarioId(), datos.fechaHorario().plusDays(1), hora);
     }
 
-    @Cuando("un usuario inexistente reserva ese horario a las {string}")
-    public void usuarioInexistenteReserva(String hora) {
-        reservar(999_999, datos.horarioId(), datos.fechaHorario(), hora);
+    @Dado("que {string} inició sesión")
+    public void inicioSesion(String nombre) {
+        autenticarComo(nombre);
+    }
+
+    @Y("la cuenta de {string} fue eliminada")
+    public void laCuentaFueEliminada(String nombre) {
+        datos.eliminarUsuario(nombre);
     }
 
     @Cuando("{string} reserva el horario inexistente {int} a las {string}")
     public void reservaHorarioInexistente(String nombre, int horarioId, String hora) {
-        reservar(datos.idDeUsuario(nombre), horarioId, datos.fechaHorario(), hora);
+        autenticarComo(nombre);
+        reservar(horarioId, datos.fechaHorario(), hora);
     }
 
     @Cuando("envío una solicitud de reserva sin datos")
     public void envioReservaSinDatos() {
+        autenticarComo("Ana");
         api.postJson(RUTA_RESERVAS, Map.of());
+    }
+
+    @Cuando("intento reservar ese horario a las {string} sin haber iniciado sesión")
+    public void reservarSinSesion(String hora) {
+        api.sinSesion();
+        reservar(datos.horarioId(), datos.fechaHorario(), hora);
     }
 
     @Cuando("{string} y {string} reservan ese horario al mismo tiempo a las {string}")
     public void reservanAlMismoTiempo(String primero, String segundo, String hora) {
-        List<Map<String, Object>> cuerpos = List.of(
-            cuerpoReserva(datos.idDeUsuario(primero), datos.horarioId(), datos.fechaHorario(), hora),
-            cuerpoReserva(datos.idDeUsuario(segundo), datos.horarioId(), datos.fechaHorario(), hora)
-        );
+        autenticarComo(primero);
+        autenticarComo(segundo);
+        Map<String, Object> cuerpos = new LinkedHashMap<>();
+        cuerpos.put(primero, cuerpoReserva(datos.horarioId(), datos.fechaHorario(), hora));
+        cuerpos.put(segundo, cuerpoReserva(datos.horarioId(), datos.fechaHorario(), hora));
         api.postJsonSimultaneos(RUTA_RESERVAS, cuerpos)
             .forEach(respuesta -> codigosSimultaneos.add(respuesta.statusCode()));
     }
@@ -113,22 +129,32 @@ public class PasosReservas {
 
     @Cuando("{string} cancela su reserva")
     public void cancelaSuReserva(String nombre) {
-        cancelar(datos.idDeReserva(nombre), datos.idDeUsuario(nombre));
+        autenticarComo(nombre);
+        cancelar(datos.idDeReserva(nombre), "");
     }
 
-    @Cuando("{string} cancela la reserva de {string} indicando su propio identificador")
+    @Cuando("{string} cancela la reserva de {string}")
     public void cancelaReservaAjena(String nombre, String duenio) {
-        cancelar(datos.idDeReserva(duenio), datos.idDeUsuario(nombre));
+        autenticarComo(nombre);
+        cancelar(datos.idDeReserva(duenio), "");
+    }
+
+    @Cuando("{string} cancela la reserva de {string} enviando el identificador de {string} en la solicitud")
+    public void cancelaReservaAjenaSuplantando(String nombre, String duenio, String suplantado) {
+        autenticarComo(nombre);
+        cancelar(datos.idDeReserva(duenio), "?usuarioId=" + datos.idDeUsuario(suplantado));
     }
 
     @Cuando("{string} cancela la reserva inexistente {int}")
     public void cancelaReservaInexistente(String nombre, int reservaId) {
-        cancelar(reservaId, datos.idDeUsuario(nombre));
+        autenticarComo(nombre);
+        cancelar(reservaId, "");
     }
 
-    @Cuando("se intenta cancelar la reserva de {string} sin indicar el usuario")
-    public void cancelarSinUsuario(String nombre) {
-        api.delete(RUTA_RESERVAS + "/" + datos.idDeReserva(nombre) + "/cancelar");
+    @Cuando("se intenta cancelar la reserva de {string} sin haber iniciado sesión")
+    public void cancelarSinSesion(String nombre) {
+        api.sinSesion();
+        cancelar(datos.idDeReserva(nombre), "");
     }
 
     @Entonces("la reserva de {string} queda en estado {string}")
@@ -136,18 +162,20 @@ public class PasosReservas {
         assertThat(datos.estadoDeReserva(nombre)).isEqualTo(estado);
     }
 
-    private void reservar(Integer usuarioId, Integer horarioId, LocalDate fecha, String hora) {
-        api.postJson(RUTA_RESERVAS, cuerpoReserva(usuarioId, horarioId, fecha, hora));
+    /** Cada persona usa su propia sesión; se inicia la primera vez que actúa. */
+    private void autenticarComo(String nombre) {
+        if (!api.haySesion(nombre)) {
+            api.iniciarSesion(nombre, datos.emailDeUsuario(nombre), DatosPrueba.CONTRASENA_POR_DEFECTO);
+        }
+        api.usarSesion(nombre);
     }
 
-    private static Map<String, Object> cuerpoReserva(
-        Integer usuarioId,
-        Integer horarioId,
-        LocalDate fecha,
-        String hora
-    ) {
+    private void reservar(Integer horarioId, LocalDate fecha, String hora) {
+        api.postJson(RUTA_RESERVAS, cuerpoReserva(horarioId, fecha, hora));
+    }
+
+    private static Map<String, Object> cuerpoReserva(Integer horarioId, LocalDate fecha, String hora) {
         Map<String, Object> cuerpo = new LinkedHashMap<>();
-        cuerpo.put("usuarioId", usuarioId);
         cuerpo.put("horarioId", horarioId);
         cuerpo.put("fecha", fecha.toString());
         cuerpo.put("hora", hora);
@@ -161,7 +189,7 @@ public class PasosReservas {
         }
     }
 
-    private void cancelar(Integer reservaId, Integer usuarioId) {
-        api.delete(RUTA_RESERVAS + "/" + reservaId + "/cancelar?usuarioId=" + usuarioId);
+    private void cancelar(Integer reservaId, String parametros) {
+        api.delete(RUTA_RESERVAS + "/" + reservaId + "/cancelar" + parametros);
     }
 }

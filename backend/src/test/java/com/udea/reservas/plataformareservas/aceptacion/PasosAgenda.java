@@ -16,9 +16,33 @@ public class PasosAgenda {
     private final ClienteApi api;
     private final DatosPrueba datos;
 
+    private Integer otraAgendaId;
+
     @Dado("que soy un proveedor con una agenda activa")
     public void soyProveedorConAgendaActiva() {
         datos.crearProveedorConAgendaActiva();
+        api.iniciarSesion("Proveedor", "proveedor@test.com", DatosPrueba.CONTRASENA_POR_DEFECTO);
+    }
+
+    @Y("existe otro proveedor con su propia agenda")
+    public void existeOtroProveedor() {
+        otraAgendaId = datos.crearProveedorConAgenda("Otro proveedor", "otro@test.com");
+    }
+
+    @Cuando("intento definir un bloque en la agenda del otro proveedor")
+    public void definoBloqueEnAgendaAjena() {
+        api.postJson(rutaHorarios(otraAgendaId), cuerpoBloque());
+    }
+
+    @Cuando("intento definir un bloque en mi agenda sin haber iniciado sesión")
+    public void definoBloqueSinSesion() {
+        api.sinSesion();
+        api.postJson(rutaHorarios(datos.agendaId()), cuerpoBloque());
+    }
+
+    @Y("la agenda del otro proveedor tiene {int} bloque(s) guardado(s)")
+    public void laAgendaAjenaTieneBloques(int total) {
+        assertThat(datos.contarBloquesDeLaAgenda(otraAgendaId)).isEqualTo(total);
     }
 
     @Y("mi agenda tiene un bloque el día {int} de {string} a {string}")
@@ -64,6 +88,10 @@ public class PasosAgenda {
         assertThat(LocalTime.parse(data.get("horaInicio").asString())).isEqualTo(LocalTime.parse(inicio));
         assertThat(LocalTime.parse(data.get("horaFin").asString())).isEqualTo(LocalTime.parse(fin));
         assertThat(data.get("agendaId").asInt()).isEqualTo(datos.agendaId());
+    }
+
+    private static Map<String, Object> cuerpoBloque() {
+        return Map.of("diaSemana", 1, "horaInicio", "08:00:00", "horaFin", "12:00:00", "duracionSlotMin", 30);
     }
 
     private static String rutaHorarios(Integer agendaId) {

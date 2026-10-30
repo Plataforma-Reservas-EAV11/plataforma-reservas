@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.udea.reservas.plataformareservas.auth.controller.UserController;
+import com.udea.reservas.plataformareservas.auth.service.LoginAttemptListener;
+import com.udea.reservas.plataformareservas.auth.service.LoginAttemptService;
 import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
 import com.udea.reservas.plataformareservas.auth.service.UserService;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +31,13 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 @WebMvcTest(UserController.class)
-@Import({ SecurityConfiguration.class, PasswordEncoderConfiguration.class })
+@Import({
+    SecurityConfiguration.class,
+    ApiSecurityConfiguration.class,
+    JsonSecurityErrorHandler.class,
+    PasswordEncoderConfiguration.class,
+    LoginAttemptListener.class
+})
 @EnableWebSecurity
 class SecurityFilterChainTest {
 
@@ -47,6 +55,9 @@ class SecurityFilterChainTest {
 
     @MockitoBean
     private UserDetailsService userDetailsService;
+
+    @MockitoBean
+    private LoginAttemptService loginAttemptService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -81,7 +92,8 @@ class SecurityFilterChainTest {
                 "Ana",
                 "ana@example.com",
                 "usuario",
-                passwordEncoder.encode("clave-segura-1")
+                passwordEncoder.encode("clave-segura-1"),
+                true
             )
         );
         MvcResult csrfResult = mockMvc.perform(get("/api/v1/auth/csrf"))
@@ -103,6 +115,8 @@ class SecurityFilterChainTest {
             .andExpect(jsonPath("$.data.id").value(7))
             .andExpect(jsonPath("$.data.email").value("ana@example.com"))
             .andExpect(jsonPath("$.data.rol").value("usuario"));
+
+        verify(loginAttemptService).recordSuccess("ana@example.com");
     }
 
     @Test
@@ -115,7 +129,8 @@ class SecurityFilterChainTest {
                 "Ana",
                 "ana@example.com",
                 "usuario",
-                passwordEncoder.encode("otra-clave-distinta")
+                passwordEncoder.encode("otra-clave-distinta"),
+                true
             )
         );
         MvcResult csrfResult = mockMvc.perform(get("/api/v1/auth/csrf")).andReturn();
@@ -133,5 +148,72 @@ class SecurityFilterChainTest {
             // Assert
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.errorCode").value("INVALID_CREDENTIALS"));
+
+        verify(loginAttemptService).recordFailure("ana@example.com");
+    }
+
+    @Test
+    @DisplayName("DEF-13: una cuenta bloqueada responde 423 y no suma otro intento fallido")
+    void loginWithLockedAccountReturnsLocked() throws Exception {
+        // Arrange
+        when(userDetailsService.loadUserByUsername("ana@example.com")).thenReturn(
+            new UserPrincipal(
+                7,
+                "Ana",
+                "ana@example.com",
+                "usuario",
+                passwordEncoder.encode("clave-segura-1"),
+                false
+            )
+        );
+        MvcResult csrfResult = mockMvc.perform(get("/api/v1/auth/csrf")).andReturn();
+        MockHttpSession session = (MockHttpSession) csrfResult.getRequest().getSession();
+        JsonNode csrf = objectMapper.readTree(csrfResult.getResponse().getContentAsString());
+
+        // Act: aunque la contraseña sea la correcta
+        mockMvc.perform(
+            post("/api/v1/auth/login")
+                .session(session)
+                .header(csrf.get("headerName").asString(), csrf.get("token").asString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(LOGIN_BODY)
+        )
+            // Assert
+            .andExpect(status().isLocked())
+            .andExpect(jsonPath("$.errorCode").value("ACCOUNT_LOCKED"));
+
+        verify(loginAttemptService, never()).recordFailure(anyString());
+        verify(loginAttemptService, never()).recordSuccess(anyString());
+    }
+
+    @Test
+    @DisplayName("DEF-15: acepta el correo con espacios y mayúsculas")
+    void loginWithSpacesAroundTheEmailSucceeds() throws Exception {
+        // Arrange
+        when(userDetailsService.loadUserByUsername("ana@example.com")).thenReturn(
+            new UserPrincipal(
+                7,
+                "Ana",
+                "ana@example.com",
+                "usuario",
+                passwordEncoder.encode("clave-segura-1"),
+                true
+            )
+        );
+        MvcResult csrfResult = mockMvc.perform(get("/api/v1/auth/csrf")).andReturn();
+        MockHttpSession session = (MockHttpSession) csrfResult.getRequest().getSession();
+        JsonNode csrf = objectMapper.readTree(csrfResult.getResponse().getContentAsString());
+
+        // Act
+        mockMvc.perform(
+            post("/api/v1/auth/login")
+                .session(session)
+                .header(csrf.get("headerName").asString(), csrf.get("token").asString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\" Ana@Example.com \",\"password\":\"clave-segura-1\"}")
+        )
+            // Assert
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.email").value("ana@example.com"));
     }
 }

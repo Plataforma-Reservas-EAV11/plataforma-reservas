@@ -41,4 +41,17 @@ public class User {
 
     @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
     private LocalDateTime createdAt;
+
+    // Intentos fallidos consecutivos de inicio de sesión (DEF-13).
+    @Column(name = "intentos_fallidos", nullable = false)
+    @Builder.Default
+    private int failedLoginAttempts = 0;
+
+    // Mientras sea posterior al momento actual, la cuenta no puede iniciar sesión.
+    @Column(name = "bloqueado_hasta")
+    private LocalDateTime lockedUntil;
+
+    public boolean isLockedAt(LocalDateTime moment) {
+        return lockedUntil != null && lockedUntil.isAfter(moment);
+    }
 }

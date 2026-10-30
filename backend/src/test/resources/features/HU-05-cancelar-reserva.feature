@@ -28,9 +28,17 @@ Característica: Cancelar una reserva
     Y el mensaje de la respuesta es "La reserva ya está cancelada."
     Y la reserva de "Ana" queda en estado "cancelada"
 
-  @excepcional @CP-11 @CP-17 @RSK-03 @P1
-  Escenario: Cancelar la reserva de otro usuario cambiando el identificador en la solicitud
-    Cuando "Luis" cancela la reserva de "Ana" indicando su propio identificador
+  @excepcional @CP-11 @RSK-03 @P1
+  Escenario: Cancelar la reserva de otro usuario
+    Cuando "Luis" cancela la reserva de "Ana"
+    Entonces la respuesta tiene el código HTTP 403
+    Y el mensaje de la respuesta es "No puedes cancelar una reserva que no te pertenece."
+    Y la reserva de "Ana" queda en estado "activa"
+
+  # DEF-01: la identidad sale de la sesión; un usuarioId enviado en la URL se ignora.
+  @excepcional @CP-17 @RSK-03 @P1 @DEF-01
+  Escenario: Cancelar la reserva de otro usuario enviando el identificador del dueño
+    Cuando "Luis" cancela la reserva de "Ana" enviando el identificador de "Ana" en la solicitud
     Entonces la respuesta tiene el código HTTP 403
     Y el mensaje de la respuesta es "No puedes cancelar una reserva que no te pertenece."
     Y la reserva de "Ana" queda en estado "activa"
@@ -49,17 +57,10 @@ Característica: Cancelar una reserva
     Entonces la respuesta tiene el código HTTP 404
     Y el mensaje de la respuesta es "La reserva no existe."
 
-  @excepcional @CP-CAN-06 @P3
-  Escenario: Solicitud de cancelación sin usuario
-    Cuando se intenta cancelar la reserva de "Ana" sin indicar el usuario
-    Entonces la respuesta tiene el código HTTP 400
-    Y la reserva de "Ana" queda en estado "activa"
-
-  # DEF-01 abierto: hoy el backend acepta la cancelación sin sesión porque el usuario
-  # viaja como parámetro. El escenario describe el comportamiento esperado y se excluye
-  # del pipeline con @pendiente hasta que se corrija.
-  @excepcional @CP-18 @RSK-03 @P1 @pendiente @DEF-01
+  # DEF-01 corregido: sin sesión iniciada la cancelación responde 401 y no cambia nada.
+  @excepcional @CP-18 @RSK-03 @P1 @DEF-01
   Escenario: Cancelar una reserva sin haber iniciado sesión
-    Cuando "Ana" cancela su reserva
+    Cuando se intenta cancelar la reserva de "Ana" sin haber iniciado sesión
     Entonces la respuesta tiene el código HTTP 401
+    Y el código de error es "UNAUTHENTICATED"
     Y la reserva de "Ana" queda en estado "activa"
