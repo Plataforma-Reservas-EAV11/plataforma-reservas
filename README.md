@@ -140,6 +140,38 @@ Endpoint: `POST /api/agendas/{agendaId}/horarios` (requiere sesión de proveedor
 - `403 Forbidden` — la agenda pertenece a otro proveedor.
 - `404 Not Found` — la agenda indicada no existe.
 
+## HU: Crear mis servicios
+
+Endpoint: `POST /api/v1/providers/me/services` (requiere sesión de proveedor y token CSRF válido).
+
+**Request body:**
+```json
+{
+  "nombre": "Corte",
+  "descripcion": "Corte de cabello",
+  "duracion": 30
+}
+```
+
+`duracion` se expresa en minutos. Nombre y descripción son obligatorios (máximo 150 y 500 caracteres); la duración es un entero positivo y no tiene un máximo de negocio definido. Los nombres duplicados están permitidos. El proveedor propietario se determina mediante la identidad de la sesión; `proveedor_id` no forma parte del DTO y enviar ese dato no cambia el propietario.
+
+**Respuestas:**
+- `201 Created` — servicio creado con su identificador y los datos recibidos.
+- `400 Bad Request` — cuerpo inválido o campos que incumplen las validaciones.
+- `401 Unauthorized` — no hay sesión iniciada.
+- `403 Forbidden` — la cuenta no tiene rol proveedor o falta el token CSRF.
+- `404 Not Found` — el usuario no tiene un perfil de proveedor.
+- `409 Conflict` — el usuario tiene más de un perfil de proveedor; no se escoge ninguno automáticamente.
+
+La tabla nueva se incluye en `backend/src/main/resources/db/schema.sql`. Para una base de datos existente, ejecutar manualmente `backend/src/main/resources/db/migraciones/2026-11-02-crear-servicio.sql` antes del despliegue. Esta migración no cambia la cardinalidad de `proveedor.usuario_id`; el endpoint rechaza perfiles duplicados. No se consultaron los datos reales. Antes de decidir una restricción única futura, revisar los duplicados con una consulta de solo lectura:
+```sql
+SELECT usuario_id, COUNT(*)
+FROM proveedor
+GROUP BY usuario_id
+HAVING COUNT(*) > 1;
+```
+No se eliminan ni combinan perfiles automáticamente. La interfaz web no está en este repositorio.
+
 ## Estructura del repositorio
 
 ```
@@ -153,7 +185,8 @@ plataforma-reservas/
         │   ├── java/com/udea/reservas/plataformareservas/
         │   │   ├── usuarios/       (model, repository)
         │   │   ├── proveedores/    (model)
-        │   │   ├── recursos/      (model)
+        │   │   ├── servicios/      (model, repository, service, controller, dto)
+        │   │   ├── recursos/       (model)
         │   │   ├── agendas/        (model: Agenda, HorarioDisponible — repository, service, controller, dto, exception)
         │   │   └── reservas/       (model, repository, service, controller, dto, exception)
         │   └── resources/

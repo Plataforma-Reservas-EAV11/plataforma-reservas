@@ -82,24 +82,13 @@ class HorarioDisponibleServiceTest {
         );
 
         // Assert
-        assertThat(resultado)
-            .isNotNull()
-            .extracting(
-                HorarioResponse::id,
-                HorarioResponse::agendaId,
-                HorarioResponse::diaSemana,
-                HorarioResponse::horaInicio,
-                HorarioResponse::horaFin,
-                HorarioResponse::duracionSlotMin
-            )
-            .containsExactly(
-                1,
-                agenda.getId(),
-                request.diaSemana(),
-                request.horaInicio(),
-                request.horaFin(),
-                request.duracionSlotMin()
-            );
+        assertThat(resultado).isNotNull();
+        assertThat(resultado.id()).isEqualTo(1);
+        assertThat(resultado.agendaId()).isEqualTo(agenda.getId());
+        assertThat(resultado.diaSemana()).isEqualTo(request.diaSemana());
+        assertThat(resultado.horaInicio()).isEqualTo(request.horaInicio());
+        assertThat(resultado.horaFin()).isEqualTo(request.horaFin());
+        assertThat(resultado.duracionSlotMin()).isEqualTo(request.duracionSlotMin());
 
         ArgumentCaptor<HorarioDisponible> captor =
             ArgumentCaptor.forClass(HorarioDisponible.class);

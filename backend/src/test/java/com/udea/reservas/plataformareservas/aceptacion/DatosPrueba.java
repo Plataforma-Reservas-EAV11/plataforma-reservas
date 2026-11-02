@@ -37,7 +37,7 @@ public class DatosPrueba {
 
     public void limpiarBaseDeDatos() {
         jdbc.execute(
-            "TRUNCATE reserva, horario_disponible, agenda, recurso, proveedor, usuario RESTART IDENTITY CASCADE"
+            "TRUNCATE reserva, horario_disponible, agenda, recurso, servicio, proveedor, usuario RESTART IDENTITY CASCADE"
         );
     }
 
@@ -58,6 +58,34 @@ public class DatosPrueba {
     public Integer crearUsuario(String nombre) {
         String email = nombre.toLowerCase(Locale.ROOT) + "@test.com";
         return crearUsuario(nombre, email, CONTRASENA_POR_DEFECTO, "usuario");
+    }
+
+    public Integer crearProveedor(String nombre, String email) {
+        Integer usuarioId = crearUsuario(
+            nombre,
+            email,
+            CONTRASENA_POR_DEFECTO,
+            "proveedor"
+        );
+        crearPerfilProveedor(usuarioId, nombre + " negocio");
+        return usuarioId;
+    }
+
+    public Integer crearPerfilProveedor(Integer usuarioId, String nombreNegocio) {
+        return jdbc.queryForObject(
+            "INSERT INTO proveedor (usuario_id, nombre_negocio) VALUES (?, ?) RETURNING id",
+            Integer.class,
+            usuarioId,
+            nombreNegocio
+        );
+    }
+
+    public int contarServiciosDeUsuario(Integer usuarioId) {
+        return jdbc.queryForObject(
+            "SELECT count(*) FROM servicio s JOIN proveedor p ON p.id = s.proveedor_id WHERE p.usuario_id = ?",
+            Integer.class,
+            usuarioId
+        );
     }
 
     public Integer idDeUsuario(String nombre) {
