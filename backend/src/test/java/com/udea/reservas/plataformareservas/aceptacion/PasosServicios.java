@@ -6,6 +6,7 @@ import io.cucumber.java.es.Cuando;
 import io.cucumber.java.es.Dado;
 import io.cucumber.java.es.Entonces;
 import io.cucumber.java.es.Y;
+import java.util.HashMap;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 
@@ -18,6 +19,7 @@ public class PasosServicios {
     private final DatosPrueba datos;
 
     private Integer usuarioId;
+    private final Map<String, Integer> serviciosPorNombre = new HashMap<>();
 
     @Dado("que existe el proveedor {string} con correo {string}")
     public void existeProveedor(String nombre, String email) {
@@ -113,6 +115,54 @@ public class PasosServicios {
     public void servicioGuardadoParaProveedorAutenticado(String nombre) {
         assertThat(api.ultimoJson().get("data").get("nombre").asString()).isEqualTo(nombre);
         assertThat(datos.contarServiciosDeUsuario(usuarioId)).isEqualTo(1);
+    }
+
+    @Dado("que el proveedor tiene el servicio {string} registrado")
+    public void proveedorTieneServicio(String nombre) {
+        serviciosPorNombre.put(nombre, datos.crearServicio(usuarioId, nombre));
+    }
+
+    @Dado("que el servicio {string} tiene una reserva {string}")
+    public void servicioTieneReserva(String nombre, String estado) {
+        datos.crearReservaDeServicio(serviciosPorNombre.get(nombre), "Cliente reservante", estado);
+    }
+
+    @Dado("que existe otro proveedor {string} con correo {string} que tiene el servicio {string}")
+    public void existeOtroProveedorConServicio(String nombre, String email, String servicio) {
+        Integer otroUsuarioId = datos.crearProveedor(nombre, email);
+        serviciosPorNombre.put(servicio, datos.crearServicio(otroUsuarioId, servicio));
+    }
+
+    @Cuando("elimino el servicio {string}")
+    public void eliminoServicio(String nombre) {
+        api.delete(RUTA_SERVICIOS + "/" + serviciosPorNombre.get(nombre));
+    }
+
+    @Cuando("intento eliminar el servicio inexistente {int}")
+    public void intentoEliminarServicioInexistente(int id) {
+        api.delete(RUTA_SERVICIOS + "/" + id);
+    }
+
+    @Cuando("intento eliminar el servicio {string} sin iniciar sesión")
+    public void intentoEliminarServicioSinSesion(String nombre) {
+        api.sinSesion();
+        eliminoServicio(nombre);
+    }
+
+    @Entonces("el servicio {string} está {string}")
+    public void servicioEstaEnEstado(String nombre, String estado) {
+        assertThat(datos.servicioActivo(serviciosPorNombre.get(nombre)))
+            .isEqualTo("activo".equals(estado));
+    }
+
+    @Y("el proveedor autenticado tiene {int} servicios activos")
+    public void proveedorAutenticadoTieneServiciosActivos(int total) {
+        assertThat(datos.contarServiciosActivosDeUsuario(usuarioId)).isEqualTo(total);
+    }
+
+    @Y("la reserva de {string} sigue en estado {string}")
+    public void reservaSigueEnEstado(String cliente, String estado) {
+        assertThat(datos.estadoDeReserva(cliente)).isEqualTo(estado);
     }
 
     @Y("el proveedor autenticado tiene {int} servicios guardados")

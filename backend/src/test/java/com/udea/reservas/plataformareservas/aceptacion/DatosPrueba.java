@@ -88,6 +88,63 @@ public class DatosPrueba {
         );
     }
 
+    /** Crea un servicio para el (único) perfil de proveedor del usuario y devuelve su id. */
+    public Integer crearServicio(Integer usuarioId, String nombre) {
+        return jdbc.queryForObject(
+            "INSERT INTO servicio (proveedor_id, nombre, descripcion, duracion_minutos) "
+                + "SELECT id, ?, 'Descripción de prueba', 30 FROM proveedor WHERE usuario_id = ? RETURNING id",
+            Integer.class,
+            nombre,
+            usuarioId
+        );
+    }
+
+    /**
+     * Crea una reserva con el estado indicado asociada al servicio, sobre una agenda y un
+     * horario del mismo proveedor propietario del servicio.
+     */
+    public Integer crearReservaDeServicio(Integer servicioId, String nombreCliente, String estado) {
+        Integer proveedorId = jdbc.queryForObject(
+            "SELECT proveedor_id FROM servicio WHERE id = ?",
+            Integer.class,
+            servicioId
+        );
+        agendaId = crearRecursoYAgenda(proveedorId);
+        fechaHorario = LocalDate.now(clock).plusDays(7);
+        crearBloque(
+            fechaHorario.getDayOfWeek().getValue() - 1,
+            LocalTime.of(8, 0),
+            LocalTime.of(12, 0)
+        );
+        crearUsuario(nombreCliente);
+        Integer reservaId = jdbc.queryForObject(
+            "INSERT INTO reserva (usuario_id, horario_id, servicio_id, fecha, hora, estado) VALUES (?, ?, ?, ?, ?, ?) RETURNING id",
+            Integer.class,
+            idDeUsuario(nombreCliente),
+            horarioId,
+            servicioId,
+            fechaHorario,
+            LocalTime.of(8, 0),
+            estado
+        );
+        reservasPorUsuario.put(nombreCliente, reservaId);
+        return reservaId;
+    }
+
+    public boolean servicioActivo(Integer servicioId) {
+        return Boolean.TRUE.equals(
+            jdbc.queryForObject("SELECT activo FROM servicio WHERE id = ?", Boolean.class, servicioId)
+        );
+    }
+
+    public int contarServiciosActivosDeUsuario(Integer usuarioId) {
+        return contar(
+            "SELECT count(*) FROM servicio s JOIN proveedor p ON p.id = s.proveedor_id "
+                + "WHERE p.usuario_id = ? AND s.activo = true",
+            usuarioId
+        );
+    }
+
     public Integer idDeUsuario(String nombre) {
         return usuariosPorNombre.get(nombre);
     }
@@ -117,6 +174,11 @@ public class DatosPrueba {
             Integer.class,
             usuarioId
         );
+        return crearRecursoYAgenda(proveedorId);
+    }
+
+    /** Crea un recurso y una agenda activa para el proveedor indicado y devuelve el id de la agenda. */
+    private Integer crearRecursoYAgenda(Integer proveedorId) {
         Integer recursoId = jdbc.queryForObject(
             "INSERT INTO recurso (proveedor_id, nombre, tipo) VALUES (?, 'Silla 1', 'silla') RETURNING id",
             Integer.class,

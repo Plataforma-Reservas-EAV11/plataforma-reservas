@@ -5,6 +5,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -197,6 +198,46 @@ class ServicioControllerTest {
             .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST"));
 
         verify(servicioService, never()).crearServicio(any(Integer.class), any());
+    }
+
+    @Test
+    @DisplayName("Elimina un servicio con 200, mensaje de confirmación y usuario autenticado")
+    void eliminarServicioRetornaOk() throws Exception {
+        mockMvc.perform(delete(RUTA + "/41"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Servicio eliminado exitosamente."));
+
+        verify(servicioService).eliminarServicio(7, 41);
+    }
+
+    @Test
+    @DisplayName("Traduce los errores de negocio de eliminación al código HTTP acordado")
+    void eliminarServicioErroresDeNegocio() throws Exception {
+        doThrow(new BusinessRuleException(
+            "SERVICE_HAS_ACTIVE_RESERVATIONS",
+            "No se puede eliminar un servicio con reservas activas.",
+            HttpStatus.CONFLICT.value()
+        )).when(servicioService).eliminarServicio(7, 41);
+        doThrow(new BusinessRuleException(
+            "SERVICE_NOT_FOUND",
+            "El servicio no existe.",
+            HttpStatus.NOT_FOUND.value()
+        )).when(servicioService).eliminarServicio(7, 99);
+
+        mockMvc.perform(delete(RUTA + "/41"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.errorCode").value("SERVICE_HAS_ACTIVE_RESERVATIONS"));
+        mockMvc.perform(delete(RUTA + "/99"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.errorCode").value("SERVICE_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("Rechaza una referencia de servicio no numérica sin invocar el servicio")
+    void eliminarServicioIdNoNumericoResponde400() throws Exception {
+        mockMvc.perform(delete(RUTA + "/abc")).andExpect(status().isBadRequest());
+
+        verify(servicioService, never()).eliminarServicio(any(), any());
     }
 
     @Test

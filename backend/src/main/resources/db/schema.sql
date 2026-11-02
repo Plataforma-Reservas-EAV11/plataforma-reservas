@@ -25,7 +25,9 @@ CREATE TABLE servicio (
                          proveedor_id INTEGER NOT NULL REFERENCES proveedor(id),
                          nombre VARCHAR(150) NOT NULL,
                          descripcion VARCHAR(500) NOT NULL,
-                         duracion_minutos INTEGER NOT NULL CHECK (duracion_minutos > 0)
+                         duracion_minutos INTEGER NOT NULL CHECK (duracion_minutos > 0),
+                         -- eliminación lógica (HU eliminar servicio): false = servicio eliminado
+                         activo BOOLEAN NOT NULL DEFAULT true
 );
 
 -- recurso
@@ -62,11 +64,16 @@ CREATE TABLE reserva (
                          id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
                          usuario_id INTEGER NOT NULL REFERENCES usuario(id),
                          horario_id INTEGER NOT NULL REFERENCES horario_disponible(id),
+                         -- nullable: las reservas existentes no tienen servicio asociado
+                         servicio_id INTEGER REFERENCES servicio(id),
                          fecha DATE NOT NULL,
                          hora TIME NOT NULL,
                          estado VARCHAR(20) NOT NULL DEFAULT 'activa' CHECK (estado IN ('activa', 'cancelada', 'completada')),
                          created_at TIMESTAMP NOT NULL DEFAULT now()
 );
+
+-- Apoya la comprobación de reservas activas de un servicio antes de eliminarlo
+CREATE INDEX ix_reserva_servicio_estado ON reserva (servicio_id, estado);
 
 -- Evita dobles reservas activas sobre el mismo horario y fecha
 -- (apoya directamente tu criterio de aceptación "Horario que ya está ocupado")

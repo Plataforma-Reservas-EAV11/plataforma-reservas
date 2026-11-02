@@ -29,11 +29,15 @@ public class ApiSecurityConfiguration {
                 "/api/reservas/**",
                 "/api/agendas",
                 "/api/agendas/**",
-                "/api/v1/providers/me/services"
+                "/api/v1/providers/me/services",
+                "/api/v1/providers/me/services/**"
             )
             .authorizeHttpRequests(authorize ->
                 authorize
-                    .requestMatchers("/api/v1/providers/me/services")
+                    .requestMatchers(
+                        "/api/v1/providers/me/services",
+                        "/api/v1/providers/me/services/**"
+                    )
                     .hasRole("PROVEEDOR")
                     .anyRequest()
                     .authenticated()

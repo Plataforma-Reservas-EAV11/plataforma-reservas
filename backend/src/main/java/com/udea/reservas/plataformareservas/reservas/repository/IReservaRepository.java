@@ -16,4 +16,6 @@ public interface IReservaRepository extends JpaRepository<Reserva, Integer> {
             LocalTime hora,
             String estado
     );
+
+    boolean existsByServicio_IdAndEstadoIgnoreCase(Integer servicioId, String estado);
 }

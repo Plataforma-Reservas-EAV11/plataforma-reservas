@@ -41,4 +41,8 @@ public class Servicio {
 
     @Column(name = "duracion_minutos", nullable = false)
     private Integer duracionMinutos;
+
+    @Column(name = "activo", nullable = false)
+    @Builder.Default
+    private boolean activo = true;
 }

@@ -322,6 +322,60 @@ class ApiSecurityFilterChainTest {
         verify(servicioService).crearServicio(7, request);
     }
 
+    @Test
+    @DisplayName("Eliminar un servicio sin sesión responde 401 y no llega al servicio")
+    void eliminarServicioSinSesionResponde401() throws Exception {
+        mockMvc.perform(delete("/api/v1/providers/me/services/41"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"));
+
+        verify(servicioService, never()).eliminarServicio(any(), any());
+    }
+
+    @Test
+    @DisplayName("Eliminar un servicio con sesión sin CSRF responde 403")
+    void eliminarServicioSinCsrfResponde403() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "proveedor");
+
+        mockMvc.perform(delete("/api/v1/providers/me/services/41").session(session))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.errorCode").value("CSRF_INVALID"));
+
+        verify(servicioService, never()).eliminarServicio(any(), any());
+    }
+
+    @Test
+    @DisplayName("Un usuario cliente autenticado no puede eliminar servicios")
+    void eliminarServicioUsuarioNoProveedorResponde403() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "usuario");
+        JsonNode csrf = tokenCsrf(session);
+
+        mockMvc.perform(
+            delete("/api/v1/providers/me/services/41")
+                .session(session)
+                .header(csrf.get("headerName").asString(), csrf.get("token").asString())
+        ).andExpect(status().isForbidden());
+
+        verify(servicioService, never()).eliminarServicio(any(), any());
+    }
+
+    @Test
+    @DisplayName("Un proveedor elimina con la identidad de su sesión")
+    void eliminarServicioProveedorAutenticadoResponde200() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "proveedor");
+        JsonNode csrf = tokenCsrf(session);
+
+        mockMvc.perform(
+            delete("/api/v1/providers/me/services/41")
+                .session(session)
+                .header(csrf.get("headerName").asString(), csrf.get("token").asString())
+        )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Servicio eliminado exitosamente."));
+
+        verify(servicioService).eliminarServicio(7, 41);
+    }
+
     private static final String SERVICIO_BODY =
         "{\"nombre\":\"Corte\",\"descripcion\":\"Corte de cabello\",\"duracion\":30}";
 

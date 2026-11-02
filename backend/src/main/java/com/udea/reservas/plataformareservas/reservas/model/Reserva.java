@@ -1,6 +1,7 @@
 package com.udea.reservas.plataformareservas.reservas.model;
 
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
+import com.udea.reservas.plataformareservas.servicios.model.Servicio;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -33,6 +34,12 @@ public class Reserva {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "horario_id", nullable = false)
     private HorarioDisponible horario;
+
+    // Nullable: las reservas existentes no tienen servicio. La HU de crear reserva
+    // deberá asociarlo cuando se implemente la selección de servicio.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "servicio_id")
+    private Servicio servicio;
 
     @Column(nullable = false)
     private LocalDate fecha;
