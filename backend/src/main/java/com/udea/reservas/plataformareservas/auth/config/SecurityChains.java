@@ -23,6 +23,12 @@ import org.springframework.security.web.access.AccessDeniedHandler;
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 final class SecurityChains {
 
+    private static void changeSessionId(
+        SessionManagementConfigurer<HttpSecurity>.SessionFixationConfigurer sessionFixation
+    ) {
+        sessionFixation.changeSessionId();
+    }
+
     /**
      * Para las cadenas que exigen autenticación: un rechazo del filtro CSRF
      * sin usuario autenticado es una solicitud sin sesión (401); con sesión y
@@ -64,9 +70,7 @@ final class SecurityChains {
             .sessionManagement(sessionManagement ->
                 sessionManagement
                     .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
-                    .sessionFixation(
-                        SessionManagementConfigurer.SessionFixationConfigurer::changeSessionId
-                    )
+                    .sessionFixation(SecurityChains::changeSessionId)
             );
         return http.build();
     }

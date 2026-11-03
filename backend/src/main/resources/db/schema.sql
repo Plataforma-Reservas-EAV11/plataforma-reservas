@@ -19,6 +19,15 @@ CREATE TABLE proveedor (
                            telefono VARCHAR(30)
 );
 
+-- servicio comercial ofrecido por un proveedor; no se asocia a recursos ni agendas
+CREATE TABLE servicio (
+                         id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+                         proveedor_id INTEGER NOT NULL REFERENCES proveedor(id),
+                         nombre VARCHAR(150) NOT NULL,
+                         descripcion VARCHAR(500) NOT NULL,
+                         duracion_minutos INTEGER NOT NULL CHECK (duracion_minutos > 0)
+);
+
 -- recurso
 CREATE TABLE recurso (
                          id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

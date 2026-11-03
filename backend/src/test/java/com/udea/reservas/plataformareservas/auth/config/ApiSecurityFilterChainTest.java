@@ -21,10 +21,13 @@ import com.udea.reservas.plataformareservas.auth.service.UserService;
 import com.udea.reservas.plataformareservas.reservas.controller.ReservaController;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.service.ReservaService;
+import com.udea.reservas.plataformareservas.servicios.controller.ServicioController;
+import com.udea.reservas.plataformareservas.servicios.dto.CrearServicioRequest;
+import com.udea.reservas.plataformareservas.servicios.dto.ServicioResponse;
+import com.udea.reservas.plataformareservas.servicios.service.ServicioService;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +51,8 @@ import tools.jackson.databind.ObjectMapper;
 @WebMvcTest({
     UserController.class,
     ReservaController.class,
-    HorarioDisponibleController.class
+    HorarioDisponibleController.class,
+    ServicioController.class
 })
 @Import({
     SecurityConfiguration.class,
@@ -78,6 +82,9 @@ class ApiSecurityFilterChainTest {
 
     @MockitoBean
     private HorarioDisponibleService horarioService;
+
+    @MockitoBean
+    private ServicioService servicioService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -209,15 +216,132 @@ class ApiSecurityFilterChainTest {
             .andExpect(jsonPath("$.data.agendaId").value(1));
     }
 
+    @Test
+    @DisplayName("Crear un servicio sin sesión responde 401 y no llega al servicio")
+    void crearServicioSinSesionResponde401() throws Exception {
+        mockMvc.perform(
+            post("/api/v1/providers/me/services")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(SERVICIO_BODY)
+        )
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"));
+
+        verify(servicioService, never()).crearServicio(any(), any());
+    }
+
+    @Test
+    @DisplayName("Crear un servicio con sesión sin CSRF responde 403")
+    void crearServicioSinCsrfResponde403() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "proveedor");
+
+        mockMvc.perform(
+            post("/api/v1/providers/me/services")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(SERVICIO_BODY)
+        )
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.errorCode").value("CSRF_INVALID"));
+
+        verify(servicioService, never()).crearServicio(any(), any());
+    }
+
+    @Test
+    @DisplayName("Un usuario cliente autenticado no puede crear servicios")
+    void crearServicioUsuarioNoProveedorResponde403() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "usuario");
+        JsonNode csrf = tokenCsrf(session);
+
+        mockMvc.perform(
+            post("/api/v1/providers/me/services")
+                .session(session)
+                .header(csrf.get("headerName").asString(), csrf.get("token").asString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(SERVICIO_BODY)
+        ).andExpect(status().isForbidden());
+
+        verify(servicioService, never()).crearServicio(any(), any());
+    }
+
+    @Test
+    @DisplayName("Un proveedor crea el servicio con la identidad de su sesión")
+    void crearServicioProveedorAutenticadoResponde201() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "proveedor");
+        JsonNode csrf = tokenCsrf(session);
+        CrearServicioRequest request = new CrearServicioRequest(
+            "Corte",
+            "Corte de cabello",
+            30
+        );
+        when(servicioService.crearServicio(7, request)).thenReturn(
+            new ServicioResponse(41, "Corte", "Corte de cabello", 30)
+        );
+
+        mockMvc.perform(
+            post("/api/v1/providers/me/services")
+                .session(session)
+                .header(csrf.get("headerName").asString(), csrf.get("token").asString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(SERVICIO_BODY)
+        )
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.id").value(41))
+            .andExpect(jsonPath("$.data.proveedorId").doesNotExist());
+
+        verify(servicioService).crearServicio(7, request);
+    }
+
+    @Test
+    @DisplayName("El proveedor propietario sale de la sesión, no del payload")
+    void crearServicioIgnoraProveedorIdEnviadoPorElCliente() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "proveedor");
+        JsonNode csrf = tokenCsrf(session);
+        CrearServicioRequest request = new CrearServicioRequest(
+            "Corte",
+            "Corte de cabello",
+            30
+        );
+        when(servicioService.crearServicio(7, request)).thenReturn(
+            new ServicioResponse(41, "Corte", "Corte de cabello", 30)
+        );
+
+        mockMvc.perform(
+            post("/api/v1/providers/me/services")
+                .session(session)
+                .header(csrf.get("headerName").asString(), csrf.get("token").asString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"nombre\":\"Corte\",\"descripcion\":\"Corte de cabello\"," +
+                    "\"duracion\":30,\"proveedor_id\":999}"
+                )
+        )
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.proveedorId").doesNotExist());
+
+        verify(servicioService).crearServicio(7, request);
+    }
+
+    private static final String SERVICIO_BODY =
+        "{\"nombre\":\"Corte\",\"descripcion\":\"Corte de cabello\",\"duracion\":30}";
+
     private MockHttpSession sesionAutenticada(int usuarioId) throws Exception {
+        return sesionAutenticada(usuarioId, "usuario");
+    }
+
+    private MockHttpSession sesionAutenticada(int usuarioId, String role) throws Exception {
         MvcResult csrfResult = mockMvc.perform(get("/api/v1/auth/csrf")).andReturn();
         MockHttpSession session = (MockHttpSession) csrfResult.getRequest().getSession();
         UserPrincipal principal = new UserPrincipal(
-            usuarioId, "Ana", "ana@example.com", "usuario", "hash", true
+            usuarioId, "Ana", "ana@example.com", role, "hash", true
         );
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(
-            UsernamePasswordAuthenticationToken.authenticated(principal, null, List.of())
+            UsernamePasswordAuthenticationToken.authenticated(
+                principal,
+                null,
+                principal.getAuthorities()
+            )
         );
         session.setAttribute(
             HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY,
