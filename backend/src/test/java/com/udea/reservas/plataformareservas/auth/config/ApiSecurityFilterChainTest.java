@@ -18,13 +18,17 @@ import com.udea.reservas.plataformareservas.agendas.service.HorarioDisponibleSer
 import com.udea.reservas.plataformareservas.auth.controller.UserController;
 import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
 import com.udea.reservas.plataformareservas.auth.service.UserService;
+import com.udea.reservas.plataformareservas.proveedores.controller.ProviderController;
+import com.udea.reservas.plataformareservas.proveedores.service.ProviderRegistrationService;
 import com.udea.reservas.plataformareservas.reservas.controller.ReservaController;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.service.ReservaService;
 import com.udea.reservas.plataformareservas.servicios.controller.ServicioController;
+import com.udea.reservas.plataformareservas.servicios.controller.ServiceCatalogController;
 import com.udea.reservas.plataformareservas.servicios.dto.CrearServicioRequest;
 import com.udea.reservas.plataformareservas.servicios.dto.ServicioResponse;
 import com.udea.reservas.plataformareservas.servicios.service.ServicioService;
+import com.udea.reservas.plataformareservas.servicios.service.ServiceCatalogService;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -50,9 +54,11 @@ import tools.jackson.databind.ObjectMapper;
 /** DEF-01: reservas y agendas exigen sesión; las operaciones de escritura, además, token CSRF. */
 @WebMvcTest({
     UserController.class,
+    ProviderController.class,
     ReservaController.class,
     HorarioDisponibleController.class,
-    ServicioController.class
+    ServicioController.class,
+    ServiceCatalogController.class
 })
 @Import({
     SecurityConfiguration.class,
@@ -75,6 +81,9 @@ class ApiSecurityFilterChainTest {
     private UserService userService;
 
     @MockitoBean
+    private ProviderRegistrationService providerRegistrationService;
+
+    @MockitoBean
     private UserDetailsService userDetailsService;
 
     @MockitoBean
@@ -85,6 +94,9 @@ class ApiSecurityFilterChainTest {
 
     @MockitoBean
     private ServicioService servicioService;
+
+    @MockitoBean
+    private ServiceCatalogService catalogService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -228,6 +240,45 @@ class ApiSecurityFilterChainTest {
             .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"));
 
         verify(servicioService, never()).crearServicio(any(), any());
+    }
+
+    @Test
+    @DisplayName("Las consultas de catálogo requieren sesión")
+    void catalogQueriesRequireAuthentication() throws Exception {
+        mockMvc.perform(get("/api/v1/providers"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"));
+        mockMvc.perform(get("/api/v1/providers/1/services"))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/v1/services/1/availability"))
+            .andExpect(status().isUnauthorized());
+
+        verify(catalogService, never()).getProviders(any(Integer.class), any(Integer.class));
+        verify(catalogService, never()).getProviderServices(any(Integer.class));
+        verify(catalogService, never()).getAvailableSlots(any(Integer.class));
+    }
+
+    @Test
+    @DisplayName("Un usuario autenticado puede leer el catálogo sin rol de proveedor")
+    void authenticatedUserCanReadCatalog() throws Exception {
+        when(catalogService.getProviders(0, 20)).thenReturn(
+            new com.udea.reservas.plataformareservas.servicios.dto.ProviderPageResponse(
+                java.util.List.of(), 0, 20, 0, 0, true, true, true
+            )
+        );
+        when(catalogService.getProviderServices(1)).thenReturn(java.util.List.of());
+        when(catalogService.getAvailableSlots(1)).thenReturn(java.util.List.of());
+        MockHttpSession session = sesionAutenticada(7, "usuario");
+
+        mockMvc.perform(get("/api/v1/providers").session(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.empty").value(true));
+        mockMvc.perform(get("/api/v1/providers/1/services").session(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").isArray());
+        mockMvc.perform(get("/api/v1/services/1/availability").session(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data").isArray());
     }
 
     @Test
