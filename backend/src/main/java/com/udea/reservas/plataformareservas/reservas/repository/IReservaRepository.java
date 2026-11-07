@@ -18,6 +18,11 @@ public interface IReservaRepository extends JpaRepository<Reserva, Integer> {
             String estado
     );
 
+    List<Reserva> findAllByUsuario_IdAndEstadoIgnoreCaseOrderByFechaAscHoraAsc(
+            Integer usuarioId,
+            String estado
+    );
+
     @EntityGraph(attributePaths = "horario")
     List<Reserva> findAllByHorario_Agenda_Proveedor_IdAndFechaBetweenAndEstadoIgnoreCase(
             Integer proveedorId,

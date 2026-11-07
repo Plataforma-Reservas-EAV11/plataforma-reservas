@@ -228,6 +228,27 @@ La respuesta enumera turnos futuros de los próximos 30 días (incluido el día 
 
 **Límite del modelo actual:** `servicio` se relaciona con `proveedor`, mientras que `agenda`, `horario_disponible` y `reserva` no tienen `servicio_id`. Por compatibilidad, la consulta usa las agendas activas del proveedor dueño del servicio y resta las reservas existentes de esas agendas; por ello, servicios distintos del mismo proveedor pueden mostrar horarios iguales. No se agregó una relación ni se modificó el esquema. La reserva existente continúa recibiendo `horarioId`, fecha y hora y no valida un `servicioId`.
 
+## HU: Ver mis reservas activas
+
+Endpoint: `GET /api/v1/reservations/me/active` (requiere una sesión autenticada).
+
+La identidad se obtiene de la sesión; no se acepta un identificador de usuario para filtrar la consulta. La respuesta es un arreglo ordenado por fecha y hora ascendente, limitado a reservas con estado `activa`. Si no hay resultados responde `200 OK` con `[]`.
+
+```json
+[
+  {
+    "id": 15,
+    "serviceName": null,
+    "date": "2026-11-10",
+    "startTime": "09:00:00",
+    "endTime": null,
+    "status": "activa"
+  }
+]
+```
+
+**Limitación pendiente de una futura HU de modelo:** `Reserva` no tiene una relación con `Servicio`, y el modelo no determina la hora final de una reserva a partir de su hora de inicio. Por ello, `serviceName` y `endTime` se incluyen en el contrato como `null`; no se fabrican valores. Para completarlos se requiere agregar y migrar una relación persistente entre la reserva y el servicio y definir cómo calcular la duración del turno. No se modificaron entidades ni esquema en esta HU.
+
 ## Estructura del repositorio
 
 ```
