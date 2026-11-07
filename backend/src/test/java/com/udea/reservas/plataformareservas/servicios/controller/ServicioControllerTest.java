@@ -6,12 +6,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doThrow;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.udea.reservas.plataformareservas.TestAuthentication;
 import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
 import com.udea.reservas.plataformareservas.common.BusinessRuleException;
+import com.udea.reservas.plataformareservas.common.exception.GlobalExceptionHandler;
+import com.udea.reservas.plataformareservas.common.exception.ProviderApiExceptionHandler;
 import com.udea.reservas.plataformareservas.servicios.dto.CrearServicioRequest;
 import com.udea.reservas.plataformareservas.servicios.dto.ServicioResponse;
 import com.udea.reservas.plataformareservas.servicios.service.ServicioService;
@@ -45,6 +48,7 @@ class ServicioControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(servicioController)
+            .setControllerAdvice(new ProviderApiExceptionHandler(new GlobalExceptionHandler()))
             .setCustomArgumentResolvers(TestAuthentication.argumentResolver())
             .build();
         objectMapper = new ObjectMapper();
@@ -62,7 +66,7 @@ class ServicioControllerTest {
             30
         );
         when(servicioService.crearServicio(7, request)).thenReturn(
-            new ServicioResponse(41, "Corte", "Corte de cabello", 30)
+            new ServicioResponse(41, 42, "Corte", "Corte de cabello", 30)
         );
 
         mockMvc.perform(
@@ -72,6 +76,7 @@ class ServicioControllerTest {
         )
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.data.id").value(41))
+            .andExpect(jsonPath("$.data.agendaId").value(42))
             .andExpect(jsonPath("$.data.nombre").value("Corte"))
             .andExpect(jsonPath("$.data.duracion").value(30))
             .andExpect(jsonPath("$.data.proveedorId").doesNotExist());
@@ -149,7 +154,7 @@ class ServicioControllerTest {
             Integer.MAX_VALUE
         );
         when(servicioService.crearServicio(7, request)).thenReturn(
-            new ServicioResponse(41, nombre, descripcion, Integer.MAX_VALUE)
+            new ServicioResponse(41, 42, nombre, descripcion, Integer.MAX_VALUE)
         );
 
         mockMvc.perform(
@@ -217,5 +222,26 @@ class ServicioControllerTest {
             .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"));
 
         verify(servicioService, never()).crearServicio(any(Integer.class), any());
+    }
+
+    @Test
+    void deleteServiceUsesAuthenticatedProvider() throws Exception {
+        mockMvc.perform(delete(RUTA + "/41"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Servicio eliminado exitosamente."));
+        verify(servicioService).eliminarServicio(7, 41);
+    }
+
+    @Test
+    void deleteServiceWithActiveReservationsReturnsConflict() throws Exception {
+        doThrow(new BusinessRuleException("SERVICE_HAS_ACTIVE_RESERVATIONS",
+            "El servicio tiene reservas activas.", HttpStatus.CONFLICT.value()))
+            .when(servicioService).eliminarServicio(7, 41);
+        mockMvc.perform(delete(RUTA + "/41"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.errorCode").value("SERVICE_HAS_ACTIVE_RESERVATIONS"))
+            .andExpect(jsonPath("$.message").value("El servicio tiene reservas activas."))
+            .andExpect(jsonPath("$.details").isEmpty())
+            .andExpect(jsonPath("$.traceId").isNotEmpty());
     }
 }

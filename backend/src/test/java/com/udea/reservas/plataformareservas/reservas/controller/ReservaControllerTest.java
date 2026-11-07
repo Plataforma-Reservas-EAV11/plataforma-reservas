@@ -14,11 +14,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.udea.reservas.plataformareservas.TestAuthentication;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
+import com.udea.reservas.plataformareservas.recursos.model.Recurso;
 import com.udea.reservas.plataformareservas.common.exception.GlobalExceptionHandler;
 import com.udea.reservas.plataformareservas.reservas.dto.CrearReservaRequest;
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.service.ReservaService;
+import com.udea.reservas.plataformareservas.servicios.model.Servicio;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -83,7 +85,7 @@ class ReservaControllerTest {
         when(
             reservaService.crearReserva(
                 USUARIO_SESION,
-                request.horarioId(),
+                request.servicioId(),
                 request.fecha(),
                 request.hora()
             )
@@ -101,13 +103,14 @@ class ReservaControllerTest {
             .andExpect(jsonPath("$.id").value(100))
             .andExpect(jsonPath("$.usuarioId").value(USUARIO_SESION))
             .andExpect(jsonPath("$.horarioId").value(10))
+            .andExpect(jsonPath("$.servicioId").value(10))
             .andExpect(jsonPath("$.fecha").value("2099-01-01"))
             .andExpect(jsonPath("$.hora").value("10:30:00"))
             .andExpect(jsonPath("$.estado").value("activa"));
 
         verify(reservaService).crearReserva(
             USUARIO_SESION,
-            request.horarioId(),
+            request.servicioId(),
             request.fecha(),
             request.hora()
         );
@@ -183,7 +186,7 @@ class ReservaControllerTest {
         when(
             reservaService.crearReserva(
                 USUARIO_SESION,
-                request.horarioId(),
+                request.servicioId(),
                 request.fecha(),
                 request.hora()
             )
@@ -257,7 +260,7 @@ class ReservaControllerTest {
             // Assert
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.success").value(false))
-            .andExpect(jsonPath("$.errors.horarioId").exists())
+            .andExpect(jsonPath("$.errors.servicioId").exists())
             .andExpect(jsonPath("$.errors.fecha").exists())
             .andExpect(jsonPath("$.errors.hora").exists());
 
@@ -268,7 +271,7 @@ class ReservaControllerTest {
     @DisplayName("Crear una reserva con JSON inválido retorna 400")
     void crearReservaConJsonInvalidoRetorna400() throws Exception {
         // Arrange
-        String requestInvalido = "{ \"horarioId\": 1,";
+        String requestInvalido = "{ \"servicioId\": 1,";
 
         // Act
         mockMvc
@@ -296,7 +299,7 @@ class ReservaControllerTest {
         when(
             reservaService.crearReserva(
                 USUARIO_SESION,
-                request.horarioId(),
+                request.servicioId(),
                 request.fecha(),
                 request.hora()
             )
@@ -377,13 +380,18 @@ class ReservaControllerTest {
 
         HorarioDisponible horario = new HorarioDisponible();
         horario.setId(horarioId);
+        Servicio servicio = Servicio.builder().id(request.servicioId()).build();
+        Recurso recurso = Recurso.builder().id(30).build();
 
         return Reserva.builder()
             .id(reservaId)
             .usuario(usuario)
             .horario(horario)
+            .servicio(servicio)
+            .recurso(recurso)
             .fecha(request.fecha())
             .hora(request.hora())
+            .horaFin(request.hora().plusMinutes(30))
             .estado(estado)
             .build();
     }

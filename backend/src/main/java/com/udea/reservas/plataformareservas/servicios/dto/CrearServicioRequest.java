@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.util.List;
 import tools.jackson.databind.annotation.JsonDeserialize;
 
 public record CrearServicioRequest(
@@ -19,5 +20,18 @@ public record CrearServicioRequest(
     @NotNull(message = "La duración en minutos es obligatoria.")
     @Positive(message = "La duración en minutos debe ser un entero positivo.")
     @JsonDeserialize(using = StrictIntegerDeserializer.class)
-    Integer duracion
-) {}
+    Integer duracion,
+
+    List<@NotNull @Positive Integer> recursoIds
+) {
+
+    public CrearServicioRequest(String nombre, String descripcion, Integer duracion) {
+        this(nombre, descripcion, duracion, List.of());
+    }
+
+    public CrearServicioRequest {
+        if (recursoIds == null) {
+            recursoIds = List.of();
+        }
+    }
+}
