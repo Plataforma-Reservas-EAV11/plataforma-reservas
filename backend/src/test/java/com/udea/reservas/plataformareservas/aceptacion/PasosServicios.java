@@ -6,8 +6,10 @@ import io.cucumber.java.es.Cuando;
 import io.cucumber.java.es.Dado;
 import io.cucumber.java.es.Entonces;
 import io.cucumber.java.es.Y;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.JsonNode;
 
 @RequiredArgsConstructor
 public class PasosServicios {
@@ -18,11 +20,17 @@ public class PasosServicios {
     private final DatosPrueba datos;
 
     private Integer usuarioId;
+    private Integer recursoId;
 
     @Dado("que existe el proveedor {string} con correo {string}")
     public void existeProveedor(String nombre, String email) {
         usuarioId = datos.crearProveedor(nombre, email);
         api.iniciarSesion(nombre, email, DatosPrueba.CONTRASENA_POR_DEFECTO);
+    }
+
+    @Dado("que el proveedor tiene el recurso {string}")
+    public void proveedorTieneRecurso(String nombre) {
+        recursoId = datos.crearRecursoDeProveedor(usuarioId, nombre);
     }
 
     @Dado("que existe el cliente {string} con correo {string}")
@@ -65,6 +73,23 @@ public class PasosServicios {
         api.postJson(
             RUTA_SERVICIOS,
             Map.of("nombre", nombre, "descripcion", descripcion, "duracion", duracion)
+        );
+    }
+
+    @Cuando("creo un servicio usando ese recurso")
+    public void creoServicioUsandoRecurso() {
+        api.postJson(
+            RUTA_SERVICIOS,
+            Map.of(
+                "nombre",
+                "Consulta",
+                "descripcion",
+                "Consulta general",
+                "duracion",
+                30,
+                "recursoIds",
+                List.of(recursoId)
+            )
         );
     }
 
@@ -113,6 +138,14 @@ public class PasosServicios {
     public void servicioGuardadoParaProveedorAutenticado(String nombre) {
         assertThat(api.ultimoJson().get("data").get("nombre").asString()).isEqualTo(nombre);
         assertThat(datos.contarServiciosDeUsuario(usuarioId)).isEqualTo(1);
+    }
+
+    @Entonces("el recurso queda asociado al servicio creado")
+    public void recursoAsociadoAlServicio() {
+        JsonNode data = api.ultimoJson().get("data");
+        Integer idServicio = data.get("id").asInt();
+        assertThat(data.get("recursoIds").get(0).asInt()).isEqualTo(recursoId);
+        assertThat(datos.contarRecursosCompatibles(idServicio)).isEqualTo(1);
     }
 
     @Y("el proveedor autenticado tiene {int} servicios guardados")

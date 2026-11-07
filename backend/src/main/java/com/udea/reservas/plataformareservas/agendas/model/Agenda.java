@@ -2,6 +2,7 @@ package com.udea.reservas.plataformareservas.agendas.model;
 
 import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
 import com.udea.reservas.plataformareservas.recursos.model.Recurso;
+import com.udea.reservas.plataformareservas.servicios.model.Servicio;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -27,8 +28,12 @@ public class Agenda {
     private Proveedor proveedor;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "recurso_id", nullable = false)
+    @JoinColumn(name = "recurso_id")
     private Recurso recurso;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "servicio_id")
+    private Servicio servicio;
 
     @Column(length = 150)
     private String nombre;

@@ -62,7 +62,7 @@ class ServicioControllerTest {
             30
         );
         when(servicioService.crearServicio(7, request)).thenReturn(
-            new ServicioResponse(41, "Corte", "Corte de cabello", 30)
+            new ServicioResponse(41, 42, "Corte", "Corte de cabello", 30)
         );
 
         mockMvc.perform(
@@ -72,6 +72,7 @@ class ServicioControllerTest {
         )
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.data.id").value(41))
+            .andExpect(jsonPath("$.data.agendaId").value(42))
             .andExpect(jsonPath("$.data.nombre").value("Corte"))
             .andExpect(jsonPath("$.data.duracion").value(30))
             .andExpect(jsonPath("$.data.proveedorId").doesNotExist());
@@ -149,7 +150,7 @@ class ServicioControllerTest {
             Integer.MAX_VALUE
         );
         when(servicioService.crearServicio(7, request)).thenReturn(
-            new ServicioResponse(41, nombre, descripcion, Integer.MAX_VALUE)
+            new ServicioResponse(41, 42, nombre, descripcion, Integer.MAX_VALUE)
         );
 
         mockMvc.perform(

@@ -24,6 +24,10 @@ import com.udea.reservas.plataformareservas.reservas.controller.ActiveReservatio
 import com.udea.reservas.plataformareservas.reservas.controller.ReservaController;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.service.ReservaService;
+import com.udea.reservas.plataformareservas.recursos.controller.RecursoController;
+import com.udea.reservas.plataformareservas.recursos.dto.GuardarRecursoRequest;
+import com.udea.reservas.plataformareservas.recursos.dto.RecursoResponse;
+import com.udea.reservas.plataformareservas.recursos.service.RecursoService;
 import com.udea.reservas.plataformareservas.servicios.controller.ServicioController;
 import com.udea.reservas.plataformareservas.servicios.controller.ServiceCatalogController;
 import com.udea.reservas.plataformareservas.servicios.dto.CrearServicioRequest;
@@ -60,7 +64,8 @@ import tools.jackson.databind.ObjectMapper;
     ReservaController.class,
     HorarioDisponibleController.class,
     ServicioController.class,
-    ServiceCatalogController.class
+    ServiceCatalogController.class,
+    RecursoController.class
 })
 @Import({
     SecurityConfiguration.class,
@@ -72,7 +77,7 @@ import tools.jackson.databind.ObjectMapper;
 class ApiSecurityFilterChainTest {
 
     private static final String RESERVA_BODY =
-        "{\"horarioId\":10,\"fecha\":\"2099-01-01\",\"hora\":\"10:30:00\"}";
+        "{\"servicioId\":10,\"fecha\":\"2099-01-01\",\"hora\":\"10:30:00\"}";
     private static final String HORARIO_BODY =
         "{\"diaSemana\":1,\"horaInicio\":\"08:00:00\",\"horaFin\":\"12:00:00\",\"duracionSlotMin\":30}";
 
@@ -99,6 +104,9 @@ class ApiSecurityFilterChainTest {
 
     @MockitoBean
     private ServiceCatalogService catalogService;
+
+    @MockitoBean
+    private RecursoService recursoService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -146,6 +154,7 @@ class ApiSecurityFilterChainTest {
                 .queryParam("userId", "99")
         )
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray())
             .andExpect(jsonPath("$").isEmpty());
 
         verify(reservaService).getActiveReservations(7);
@@ -356,7 +365,7 @@ class ApiSecurityFilterChainTest {
             30
         );
         when(servicioService.crearServicio(7, request)).thenReturn(
-            new ServicioResponse(41, "Corte", "Corte de cabello", 30)
+            new ServicioResponse(41, 42, "Corte", "Corte de cabello", 30)
         );
 
         mockMvc.perform(
@@ -368,9 +377,76 @@ class ApiSecurityFilterChainTest {
         )
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.data.id").value(41))
+            .andExpect(jsonPath("$.data.agendaId").value(42))
             .andExpect(jsonPath("$.data.proveedorId").doesNotExist());
 
         verify(servicioService).crearServicio(7, request);
+    }
+
+    @Test
+    @DisplayName("Consultar recursos sin sesión responde 401")
+    void consultarRecursosSinSesionResponde401() throws Exception {
+        mockMvc.perform(get("/api/v1/providers/me/resources"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"));
+
+        verify(recursoService, never()).listarRecursos(any());
+    }
+
+    @Test
+    @DisplayName("Un usuario cliente no puede administrar recursos")
+    void clienteNoPuedeAdministrarRecursos() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "usuario");
+        JsonNode csrf = tokenCsrf(session);
+
+        mockMvc.perform(
+            post("/api/v1/providers/me/resources")
+                .session(session)
+                .header(csrf.get("headerName").asString(), csrf.get("token").asString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(RESOURCE_BODY)
+        ).andExpect(status().isForbidden());
+
+        verify(recursoService, never()).crearRecurso(any(), any());
+    }
+
+    @Test
+    @DisplayName("Un proveedor necesita CSRF para crear recursos")
+    void crearRecursoSinCsrfResponde403() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "proveedor");
+
+        mockMvc.perform(
+            post("/api/v1/providers/me/resources")
+                .session(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(RESOURCE_BODY)
+        )
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.errorCode").value("CSRF_INVALID"));
+
+        verify(recursoService, never()).crearRecurso(any(), any());
+    }
+
+    @Test
+    @DisplayName("Un proveedor crea recursos con el usuario de la sesión")
+    void crearRecursoConSesionYCsrfResponde201() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "proveedor");
+        JsonNode csrf = tokenCsrf(session);
+        GuardarRecursoRequest request = new GuardarRecursoRequest("Consultorio", "sala");
+        when(recursoService.crearRecurso(7, request))
+            .thenReturn(new RecursoResponse(41, "Consultorio", "sala", true));
+
+        mockMvc.perform(
+            post("/api/v1/providers/me/resources")
+                .session(session)
+                .header(csrf.get("headerName").asString(), csrf.get("token").asString())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(RESOURCE_BODY)
+        )
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.data.id").value(41));
+
+        verify(recursoService).crearRecurso(7, request);
     }
 
     @Test
@@ -384,7 +460,7 @@ class ApiSecurityFilterChainTest {
             30
         );
         when(servicioService.crearServicio(7, request)).thenReturn(
-            new ServicioResponse(41, "Corte", "Corte de cabello", 30)
+            new ServicioResponse(41, 42, "Corte", "Corte de cabello", 30)
         );
 
         mockMvc.perform(
@@ -405,6 +481,8 @@ class ApiSecurityFilterChainTest {
 
     private static final String SERVICIO_BODY =
         "{\"nombre\":\"Corte\",\"descripcion\":\"Corte de cabello\",\"duracion\":30}";
+    private static final String RESOURCE_BODY =
+        "{\"nombre\":\"Consultorio\",\"tipo\":\"sala\"}";
 
     private MockHttpSession sesionAutenticada(int usuarioId) throws Exception {
         return sesionAutenticada(usuarioId, "usuario");

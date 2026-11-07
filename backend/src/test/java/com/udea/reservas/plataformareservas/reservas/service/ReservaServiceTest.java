@@ -9,9 +9,15 @@ import static org.mockito.Mockito.when;
 import com.udea.reservas.plataformareservas.agendas.model.Agenda;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
+import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
+import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
+import com.udea.reservas.plataformareservas.recursos.model.Recurso;
+import com.udea.reservas.plataformareservas.recursos.repository.RecursoRepository;
+import com.udea.reservas.plataformareservas.servicios.model.Servicio;
+import com.udea.reservas.plataformareservas.servicios.repository.IServicioRepository;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import com.udea.reservas.plataformareservas.usuarios.repository.UserRepository;
 import java.time.Clock;
@@ -20,6 +26,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.Optional;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +35,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -53,6 +61,15 @@ class ReservaServiceTest {
     @Mock
     private IHorarioDisponibleRepository horarioDisponibleRepository;
 
+    @Mock
+    private IAgendaRepository agendaRepository;
+
+    @Mock
+    private IServicioRepository servicioRepository;
+
+    @Mock
+    private RecursoRepository recursoRepository;
+
     private ReservaServiceImpl reservaServiceImpl;
 
     @BeforeEach
@@ -62,6 +79,9 @@ class ReservaServiceTest {
             reservaRepository,
             usuarioRepository,
             horarioDisponibleRepository,
+            agendaRepository,
+            servicioRepository,
+            recursoRepository,
             relojFijo
         );
     }
@@ -70,22 +90,9 @@ class ReservaServiceTest {
     @DisplayName("Crea una reserva y guarda la entidad cuando los datos son válidos")
     void crearReservaValidaGuardaReserva() {
         // Arrange
-        User usuario = crearUsuario(1);
-        HorarioDisponible horario = crearHorario(true, JUEVES);
         LocalTime hora = LocalTime.of(10, 30);
-        when(usuarioRepository.findById(1)).thenReturn(Optional.of(usuario));
-        when(horarioDisponibleRepository.findById(10)).thenReturn(
-            Optional.of(horario)
-        );
-        when(
-            reservaRepository.existsByHorario_IdAndFechaAndHoraAndEstadoIgnoreCase(
-                10,
-                FECHA_FUTURA,
-                hora,
-                "activa"
-            )
-        ).thenReturn(false);
-        when(reservaRepository.save(any(Reserva.class))).thenAnswer(invocation -> {
+        prepararDatosReservaValida(JUEVES);
+        when(reservaRepository.saveAndFlush(any(Reserva.class))).thenAnswer(invocation -> {
             Reserva reserva = invocation.getArgument(0);
             reserva.setId(200);
             return reserva;
@@ -96,13 +103,16 @@ class ReservaServiceTest {
 
         // Assert
         ArgumentCaptor<Reserva> captor = ArgumentCaptor.forClass(Reserva.class);
-        verify(reservaRepository).save(captor.capture());
+        verify(reservaRepository).saveAndFlush(captor.capture());
         Reserva guardada = captor.getValue();
         assertEquals(200, resultado.getId());
-        assertSame(usuario, guardada.getUsuario());
-        assertSame(horario, guardada.getHorario());
+        assertEquals(1, guardada.getUsuario().getId());
+        assertEquals(10, guardada.getHorario().getId());
+        assertEquals(10, guardada.getServicio().getId());
+        assertEquals(30, guardada.getRecurso().getId());
         assertEquals(FECHA_FUTURA, guardada.getFecha());
         assertEquals(hora, guardada.getHora());
+        assertEquals(LocalTime.of(11, 0), guardada.getHoraFin());
         assertEquals("activa", guardada.getEstado());
         assertEquals(AHORA, guardada.getCreatedAt());
     }
@@ -123,17 +133,17 @@ class ReservaServiceTest {
         assertEquals("El usuario no existe.", exception.getMessage());
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
         verify(horarioDisponibleRepository, never()).findById(any());
-        verify(reservaRepository, never()).save(any());
+        verify(reservaRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    @DisplayName("Rechaza crear una reserva con un horario inexistente")
-    void crearReservaConHorarioInexistenteDebeFallar() {
+    @DisplayName("Rechaza crear una reserva con un servicio inexistente")
+    void crearReservaConServicioInexistenteDebeFallar() {
         // Arrange
         when(usuarioRepository.findById(1)).thenReturn(
             Optional.of(crearUsuario(1))
         );
-        when(horarioDisponibleRepository.findById(9999)).thenReturn(
+        when(servicioRepository.findById(9999)).thenReturn(
             Optional.empty()
         );
         LocalTime hora = LocalTime.of(10, 30);
@@ -144,21 +154,18 @@ class ReservaServiceTest {
         );
 
         // Assert
-        assertEquals("El horario no existe.", exception.getMessage());
+        assertEquals("El servicio no existe.", exception.getMessage());
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
-        verify(reservaRepository, never()).save(any());
+        verify(reservaRepository, never()).saveAndFlush(any());
     }
 
     @Test
     @DisplayName("Rechaza crear una reserva si la agenda está inactiva")
     void crearReservaConAgendaInactivaDebeFallar() {
         // Arrange
-        when(usuarioRepository.findById(1)).thenReturn(
-            Optional.of(crearUsuario(1))
-        );
-        when(horarioDisponibleRepository.findById(10)).thenReturn(
-            Optional.of(crearHorario(false, JUEVES))
-        );
+        prepararDatosReservaValida(JUEVES);
+        Agenda agenda = crearAgenda(false);
+        when(agendaRepository.findByServicio_Id(10)).thenReturn(Optional.of(agenda));
         LocalTime hora = LocalTime.of(10, 30);
 
         // Act
@@ -172,7 +179,7 @@ class ReservaServiceTest {
             exception.getMessage()
         );
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
-        verify(reservaRepository, never()).save(any());
+        verify(reservaRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -194,7 +201,7 @@ class ReservaServiceTest {
             exception.getMessage()
         );
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
-        verify(reservaRepository, never()).save(any());
+        verify(reservaRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -215,7 +222,7 @@ class ReservaServiceTest {
             "No se puede reservar en una fecha u hora que ya pasó.",
             exception.getMessage()
         );
-        verify(reservaRepository, never()).save(any());
+        verify(reservaRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -225,7 +232,7 @@ class ReservaServiceTest {
         prepararDatosReservaValida(JUEVES);
         LocalDate hoy = AHORA.toLocalDate();
         LocalTime unMinutoDespues = AHORA.toLocalTime().plusMinutes(1);
-        when(reservaRepository.save(any(Reserva.class))).thenAnswer(invocation ->
+        when(reservaRepository.saveAndFlush(any(Reserva.class))).thenAnswer(invocation ->
             invocation.getArgument(0)
         );
 
@@ -234,7 +241,7 @@ class ReservaServiceTest {
 
         // Assert
         assertEquals(unMinutoDespues, resultado.getHora());
-        verify(reservaRepository).save(any(Reserva.class));
+        verify(reservaRepository).saveAndFlush(any(Reserva.class));
     }
 
     @Test
@@ -255,7 +262,7 @@ class ReservaServiceTest {
             exception.getMessage()
         );
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
-        verify(reservaRepository, never()).save(any());
+        verify(reservaRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -265,7 +272,7 @@ class ReservaServiceTest {
         prepararDatosReservaValida(6);
         LocalDate domingo = LocalDate.of(2099, 1, 4);
         LocalTime hora = LocalTime.of(10, 0);
-        when(reservaRepository.save(any(Reserva.class))).thenAnswer(invocation ->
+        when(reservaRepository.saveAndFlush(any(Reserva.class))).thenAnswer(invocation ->
             invocation.getArgument(0)
         );
 
@@ -283,7 +290,7 @@ class ReservaServiceTest {
         prepararDatosReservaValida(0);
         LocalDate lunes = LocalDate.of(2099, 1, 5);
         LocalTime hora = LocalTime.of(10, 0);
-        when(reservaRepository.save(any(Reserva.class))).thenAnswer(invocation ->
+        when(reservaRepository.saveAndFlush(any(Reserva.class))).thenAnswer(invocation ->
             invocation.getArgument(0)
         );
 
@@ -307,12 +314,9 @@ class ReservaServiceTest {
         );
 
         // Assert
-        assertEquals(
-            "La hora seleccionada está fuera del rango de este horario.",
-            exception.getMessage()
-        );
+        assertEquals("La hora seleccionada está fuera del rango de este horario.", exception.getMessage());
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
-        verify(reservaRepository, never()).save(any());
+        verify(reservaRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -321,7 +325,7 @@ class ReservaServiceTest {
         // Arrange
         prepararDatosReservaValida(JUEVES);
         LocalTime hora = LocalTime.of(10, 0);
-        when(reservaRepository.save(any(Reserva.class))).thenAnswer(invocation ->
+        when(reservaRepository.saveAndFlush(any(Reserva.class))).thenAnswer(invocation ->
             invocation.getArgument(0)
         );
 
@@ -339,11 +343,11 @@ class ReservaServiceTest {
         LocalTime hora = LocalTime.of(10, 30);
         prepararDatosReservaValida(JUEVES);
         when(
-            reservaRepository.existsByHorario_IdAndFechaAndHoraAndEstadoIgnoreCase(
-                10,
+            reservaRepository.existsReservaActivaSolapada(
+                30,
                 FECHA_FUTURA,
                 hora,
-                "activa"
+                hora.plusMinutes(30)
             )
         ).thenReturn(true);
 
@@ -358,17 +362,80 @@ class ReservaServiceTest {
             exception.getMessage()
         );
         assertEquals(HttpStatus.CONFLICT, exception.getStatus());
-        verify(reservaRepository, never()).save(any());
+        verify(reservaRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    @DisplayName("Traduce la violación del índice único (reserva simultánea) a 409")
+    @DisplayName("Asigna el siguiente recurso compatible cuando el primero tiene un intervalo solapado")
+    void crearReservaSeleccionaSiguienteRecursoDisponible() {
+        LocalTime hora = LocalTime.of(10, 30);
+        prepararDatosReservaValida(JUEVES);
+        when(recursoRepository.findActiveCompatibleForUpdate(10, 20)).thenReturn(
+            List.of(crearRecurso(30), crearRecurso(31))
+        );
+        when(
+            reservaRepository.existsReservaActivaSolapada(
+                30,
+                FECHA_FUTURA,
+                hora,
+                hora.plusMinutes(30)
+            )
+        ).thenReturn(true);
+        when(
+            reservaRepository.existsReservaActivaSolapada(
+                31,
+                FECHA_FUTURA,
+                hora,
+                hora.plusMinutes(30)
+            )
+        ).thenReturn(false);
+        when(reservaRepository.saveAndFlush(any(Reserva.class))).thenAnswer(invocation ->
+            invocation.getArgument(0)
+        );
+
+        Reserva creada = reservaServiceImpl.crearReserva(1, 10, FECHA_FUTURA, hora);
+
+        assertEquals(31, creada.getRecurso().getId());
+    }
+
+    @Test
+    @DisplayName("Rechaza la reserva si el servicio no tiene recursos compatibles activos")
+    void crearReservaSinRecursosCompatiblesDebeFallar() {
+        prepararDatosReservaValida(JUEVES);
+        when(recursoRepository.findActiveCompatibleForUpdate(10, 20)).thenReturn(List.of());
+
+        ReservaException exception = assertThrows(
+            ReservaException.class,
+            () -> reservaServiceImpl.crearReserva(
+                1,
+                10,
+                FECHA_FUTURA,
+                LocalTime.of(10, 30)
+            )
+        );
+
+        assertEquals(
+            "El servicio aún no tiene recursos disponibles para reservar.",
+            exception.getMessage()
+        );
+        assertEquals(HttpStatus.CONFLICT, exception.getStatus());
+        verify(reservaRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("Traduce la violación de exclusión de intervalo a 409")
     void crearReservaSimultaneaDebeResponderConflicto() {
         // Arrange
         LocalTime hora = LocalTime.of(10, 30);
         prepararDatosReservaValida(JUEVES);
-        when(reservaRepository.save(any(Reserva.class))).thenThrow(
-            new DataIntegrityViolationException("ux_reserva_horario_fecha_activa")
+        org.hibernate.exception.ConstraintViolationException violation =
+            new org.hibernate.exception.ConstraintViolationException(
+                "overlap",
+                null,
+                "ex_reserva_recurso_intervalo"
+            );
+        when(reservaRepository.saveAndFlush(any(Reserva.class))).thenThrow(
+            new DataIntegrityViolationException("constraint violation", violation)
         );
 
         // Act
@@ -382,6 +449,28 @@ class ReservaServiceTest {
             exception.getMessage()
         );
         assertEquals(HttpStatus.CONFLICT, exception.getStatus());
+    }
+
+    @Test
+    @DisplayName("No convierte otras violaciones de integridad en conflicto de disponibilidad")
+    void crearReservaNoOcultaOtrasViolacionesDeIntegridad() {
+        prepararDatosReservaValida(JUEVES);
+        DataIntegrityViolationException failure =
+            new DataIntegrityViolationException("foreign key violation");
+        when(reservaRepository.saveAndFlush(any(Reserva.class))).thenThrow(failure);
+
+        assertSame(
+            failure,
+            assertThrows(
+                DataIntegrityViolationException.class,
+                () -> reservaServiceImpl.crearReserva(
+                    1,
+                    10,
+                    FECHA_FUTURA,
+                    LocalTime.of(10, 30)
+                )
+            )
+        );
     }
 
     @Test
@@ -519,9 +608,24 @@ class ReservaServiceTest {
         when(usuarioRepository.findById(1)).thenReturn(
             Optional.of(crearUsuario(1))
         );
-        when(horarioDisponibleRepository.findById(10)).thenReturn(
-            Optional.of(crearHorario(true, diaSemana))
+        Servicio servicio = crearServicio();
+        Agenda agenda = crearAgenda(true);
+        HorarioDisponible horario = crearHorario(agenda, diaSemana);
+        when(servicioRepository.findById(10)).thenReturn(Optional.of(servicio));
+        Mockito.lenient()
+            .when(agendaRepository.findByServicio_Id(10))
+            .thenReturn(Optional.of(agenda));
+        Mockito.lenient().when(
+            horarioDisponibleRepository.findAllByAgenda_IdAndDiaSemanaOrderByHoraInicioAsc(
+                40,
+                diaSemana
+            )
+        ).thenReturn(
+            List.of(horario)
         );
+        Mockito.lenient()
+            .when(recursoRepository.findActiveCompatibleForUpdate(10, 20))
+            .thenReturn(List.of(crearRecurso()));
     }
 
     private User crearUsuario(int usuarioId) {
@@ -534,10 +638,40 @@ class ReservaServiceTest {
         return usuario;
     }
 
-    private HorarioDisponible crearHorario(boolean agendaActiva, int diaSemana) {
-        Agenda agenda = new Agenda();
-        agenda.setActiva(agendaActiva);
+    private Servicio crearServicio() {
+        Proveedor proveedor = Proveedor.builder().id(20).build();
+        return Servicio.builder()
+            .id(10)
+            .proveedor(proveedor)
+            .nombre("Consulta")
+            .duracionMinutos(30)
+            .build();
+    }
 
+    private Agenda crearAgenda(boolean activa) {
+        Proveedor proveedor = Proveedor.builder().id(20).build();
+        return Agenda.builder()
+            .id(40)
+            .proveedor(proveedor)
+            .servicio(crearServicio())
+            .activa(activa)
+            .build();
+    }
+
+    private Recurso crearRecurso() {
+        return crearRecurso(30);
+    }
+
+    private Recurso crearRecurso(int recursoId) {
+        return Recurso.builder()
+            .id(recursoId)
+            .proveedor(Proveedor.builder().id(20).build())
+            .nombre("Consultorio")
+            .activo(true)
+            .build();
+    }
+
+    private HorarioDisponible crearHorario(Agenda agenda, int diaSemana) {
         HorarioDisponible horario = new HorarioDisponible();
         horario.setId(10);
         horario.setAgenda(agenda);
@@ -552,7 +686,7 @@ class ReservaServiceTest {
         return Reserva.builder()
             .id(reservaId)
             .usuario(crearUsuario(usuarioId))
-            .horario(crearHorario(true, JUEVES))
+            .horario(crearHorario(crearAgenda(true), JUEVES))
             .fecha(FECHA_FUTURA)
             .hora(LocalTime.of(10, 30))
             .estado(estado)

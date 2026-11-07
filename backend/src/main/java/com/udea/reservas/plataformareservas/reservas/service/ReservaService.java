@@ -8,9 +8,9 @@ import java.util.List;
 
 public interface ReservaService {
 
-    List<ActiveReservationResponse> getActiveReservations(Integer userId);
+    List<ActiveReservationResponse> getActiveReservations(Integer usuarioId);
 
-    Reserva crearReserva(Integer usuarioId, Integer horarioId, LocalDate fecha, LocalTime hora);
+    Reserva crearReserva(Integer usuarioId, Integer servicioId, LocalDate fecha, LocalTime hora);
 
     Reserva cancelarReserva(Integer reservaId, Integer usuarioId);
 }

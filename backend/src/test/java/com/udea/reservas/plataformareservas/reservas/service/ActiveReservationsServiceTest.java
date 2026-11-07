@@ -4,10 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
 import com.udea.reservas.plataformareservas.reservas.dto.ActiveReservationResponse;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
+import com.udea.reservas.plataformareservas.recursos.repository.RecursoRepository;
+import com.udea.reservas.plataformareservas.servicios.repository.IServicioRepository;
 import com.udea.reservas.plataformareservas.usuarios.repository.UserRepository;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -34,6 +37,15 @@ class ActiveReservationsServiceTest {
     @Mock
     private IHorarioDisponibleRepository scheduleRepository;
 
+    @Mock
+    private IAgendaRepository agendaRepository;
+
+    @Mock
+    private IServicioRepository serviceRepository;
+
+    @Mock
+    private RecursoRepository resourceRepository;
+
     private ReservaServiceImpl reservationService;
 
     @BeforeEach
@@ -42,6 +54,9 @@ class ActiveReservationsServiceTest {
             reservationRepository,
             userRepository,
             scheduleRepository,
+            agendaRepository,
+            serviceRepository,
+            resourceRepository,
             java.time.Clock.systemUTC()
         );
     }
@@ -82,8 +97,16 @@ class ActiveReservationsServiceTest {
             ));
 
         assertThat(reservationService.getActiveReservations(USER_ID))
-            .extracting(ActiveReservationResponse::id)
-            .containsExactly(1);
+            .containsExactly(
+                new ActiveReservationResponse(
+                    1,
+                    null,
+                    LocalDate.of(2026, 11, 6),
+                    LocalTime.of(9, 0),
+                    null,
+                    "activa"
+                )
+            );
     }
 
     @Test

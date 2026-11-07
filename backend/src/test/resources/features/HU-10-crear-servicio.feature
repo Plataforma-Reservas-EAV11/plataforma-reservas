@@ -13,6 +13,14 @@ Característica: Crear mis servicios
     Y el servicio "Corte" queda guardado para el proveedor autenticado
 
   @positivo @P1
+  Escenario: Asociar un recurso compatible al crear el servicio
+    Dado que existe el proveedor "Proveedor con recurso" con correo "proveedor-recurso@test.com"
+    Y que el proveedor tiene el recurso "Consultorio 1"
+    Cuando creo un servicio usando ese recurso
+    Entonces la respuesta tiene el código HTTP 201
+    Y el recurso queda asociado al servicio creado
+
+  @positivo @P1
   Escenario: Permitir nombres duplicados para un proveedor
     Dado que existe el proveedor "Proveedor duplicados" con correo "duplicados@test.com"
     Cuando creo dos servicios con el mismo nombre "Corte"
