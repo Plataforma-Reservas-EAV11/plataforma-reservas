@@ -156,9 +156,9 @@ public class ServiceCatalogService {
                     return dateOrder;
                 }
                 int timeOrder = first.hora().compareTo(second.hora());
-                return timeOrder != 0
-                    ? timeOrder
-                    : first.horarioId().compareTo(second.horarioId());
+                return timeOrder == 0
+                    ? first.horarioId().compareTo(second.horarioId())
+                    : timeOrder;
             })
             .toList();
     }

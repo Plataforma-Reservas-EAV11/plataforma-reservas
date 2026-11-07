@@ -218,6 +218,41 @@ class RecursoServiceImplTest {
             });
     }
 
+    @Test
+    void missingProviderProfileIsRejected() {
+        when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of());
+        assertThatThrownBy(() -> recursoService.listarRecursos(7))
+            .isInstanceOf(BusinessRuleException.class)
+            .satisfies(exception -> {
+                var error = (BusinessRuleException) exception;
+                assertThat(error.getErrorCode()).isEqualTo("PROVIDER_PROFILE_NOT_FOUND");
+                assertThat(error.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+            });
+        verify(recursoRepository, never()).findAllByProveedor_IdOrderByIdAsc(any());
+    }
+
+    @Test
+    void removingAbsentAssociationDoesNotSave() {
+        Recurso resource = recurso(41, true);
+        Servicio service = Servicio.builder().id(51).proveedor(proveedor)
+            .recursosCompatibles(new ArrayList<>()).build();
+        when(recursoRepository.findOwnedForUpdate(41, 12)).thenReturn(Optional.of(resource));
+        when(servicioRepository.findByIdAndProveedor_Id(51, 12)).thenReturn(Optional.of(service));
+        recursoService.retirarServicio(7, 41, 51);
+        assertThat(service.getRecursosCompatibles()).isEmpty();
+        verify(servicioRepository, never()).save(any(Servicio.class));
+    }
+
+    @Test
+    void blankResourceTypeIsNormalized() {
+        Recurso resource = recurso(41, true);
+        when(recursoRepository.findOwnedForUpdate(41, 12)).thenReturn(Optional.of(resource));
+        when(recursoRepository.save(resource)).thenReturn(resource);
+        var response = recursoService.actualizarRecurso(7, 41, new GuardarRecursoRequest("Sala", "   "));
+        assertThat(response.tipo()).isNull();
+        verify(recursoRepository).save(resource);
+    }
+
     private Recurso recurso(int id, boolean activo) {
         return Recurso.builder()
             .id(id)

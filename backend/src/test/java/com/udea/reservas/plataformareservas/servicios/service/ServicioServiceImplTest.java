@@ -204,12 +204,9 @@ class ServicioServiceImplTest {
         when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
         when(recursoRepository.findAllByIdInAndProveedor_Id(List.of(51), 12)).thenReturn(List.of());
 
-        assertThatThrownBy(() ->
-            servicioService.crearServicio(
-                7,
-                new CrearServicioRequest("Consulta", "Consulta general", 30, List.of(51))
-            )
-        )
+        CrearServicioRequest request =
+            new CrearServicioRequest("Consulta", "Consulta general", 30, List.of(51));
+        assertThatThrownBy(() -> servicioService.crearServicio(7, request))
             .isInstanceOf(BusinessRuleException.class)
             .satisfies(exception -> {
                 BusinessRuleException businessException = (BusinessRuleException) exception;
@@ -262,5 +259,24 @@ class ServicioServiceImplTest {
             .extracting("errorCode").isEqualTo("SERVICE_NOT_FOUND");
         verify(reservaRepository, never()).existsByServicio_IdAndEstadoIgnoreCase(any(), any());
         verify(servicioRepository, never()).save(any(Servicio.class));
+    }
+
+    @Test
+    void duplicateResourceIdsAreRejectedBeforeAnyWrite() {
+        when(proveedorRepository.findAllByUsuario_Id(7))
+            .thenReturn(List.of(Proveedor.builder().id(12).build()));
+        CrearServicioRequest request =
+            new CrearServicioRequest("Consulta", "Consulta general", 30, List.of(51, 51));
+
+        assertThatThrownBy(() -> servicioService.crearServicio(7, request))
+            .isInstanceOf(BusinessRuleException.class)
+            .satisfies(exception -> {
+                var error = (BusinessRuleException) exception;
+                assertThat(error.getErrorCode()).isEqualTo("INVALID_SERVICE_RESOURCES");
+                assertThat(error.getMessage()).isEqualTo("La lista de recursos contiene identificadores duplicados.");
+                assertThat(error.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
+        verify(servicioRepository, never()).save(any(Servicio.class));
+        verify(agendaRepository, never()).save(any(Agenda.class));
     }
 }

@@ -261,9 +261,9 @@ class ServiceCatalogServiceTest {
             .contains(LocalTime.of(10, 30), LocalTime.of(11, 0), LocalTime.of(11, 30));
         assertThat(slots).isSortedAccordingTo((first, second) -> {
             int dateOrder = first.fecha().compareTo(second.fecha());
-            return dateOrder != 0
-                ? dateOrder
-                : first.hora().compareTo(second.hora());
+            return dateOrder == 0
+                ? first.hora().compareTo(second.hora())
+                : dateOrder;
         });
     }
 
@@ -646,6 +646,107 @@ class ServiceCatalogServiceTest {
             .extracting(slot -> slot.hora())
             .contains(LocalTime.of(11, 0))
             .doesNotContain(LocalTime.of(11, 30));
+    }
+
+    @Test
+    void deletedServiceHasNoAvailability() {
+        Servicio deleted = service();
+        deleted.setEliminado(true);
+        when(serviceRepository.findById(SERVICE_ID)).thenReturn(Optional.of(deleted));
+        assertThatThrownBy(() -> catalogService.getAvailableSlots(SERVICE_ID))
+            .isInstanceOf(BusinessRuleException.class)
+            .satisfies(exception -> {
+                var error = (BusinessRuleException) exception;
+                assertThat(error.getErrorCode()).isEqualTo("SERVICE_NOT_FOUND");
+                assertThat(error.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+            });
+        verifyNoScheduleQueries();
+    }
+
+    @Test
+    void missingOrInvalidResourcesCannotOfferSlots() {
+        Servicio service = service();
+        HorarioDisponible schedule = schedule(51, 3);
+        when(serviceRepository.findById(SERVICE_ID)).thenReturn(Optional.of(service));
+        when(scheduleRepository.findAllByAgenda_Proveedor_IdAndAgenda_ActivaTrueOrderByIdAsc(PROVIDER_ID))
+            .thenReturn(List.of(schedule));
+        when(reservationRepository.findAllByHorario_Agenda_Proveedor_IdAndFechaBetweenAndEstadoIgnoreCase(
+            any(), any(), any(), any())).thenReturn(List.of());
+
+        service.setRecursosCompatibles(null);
+        assertThat(catalogService.getAvailableSlots(SERVICE_ID)).isEmpty();
+        service.setRecursosCompatibles(java.util.Arrays.asList(
+            null,
+            resource(null),
+            Recurso.builder().id(1).activo(false).proveedor(Proveedor.builder().id(PROVIDER_ID).build()).build(),
+            Recurso.builder().id(2).activo(true).build(),
+            Recurso.builder().id(3).activo(true).proveedor(Proveedor.builder().id(99).build()).build()
+        ));
+        assertThat(catalogService.getAvailableSlots(SERVICE_ID)).isEmpty();
+    }
+
+    @Test
+    void schedulesMustHaveMatchingActiveServiceAndProvider() {
+        Servicio service = service();
+        List<HorarioDisponible> schedules = new java.util.ArrayList<>();
+        HorarioDisponible noAgenda = schedule(51, 3);
+        noAgenda.setAgenda(null);
+        schedules.add(noAgenda);
+        HorarioDisponible noService = schedule(52, 3);
+        noService.getAgenda().setServicio(null);
+        schedules.add(noService);
+        HorarioDisponible noProvider = schedule(53, 3);
+        noProvider.getAgenda().setProveedor(null);
+        schedules.add(noProvider);
+        HorarioDisponible otherProvider = schedule(54, 3);
+        otherProvider.getAgenda().setProveedor(Proveedor.builder().id(99).build());
+        schedules.add(otherProvider);
+        when(serviceRepository.findById(SERVICE_ID)).thenReturn(Optional.of(service));
+        when(scheduleRepository.findAllByAgenda_Proveedor_IdAndAgenda_ActivaTrueOrderByIdAsc(PROVIDER_ID))
+            .thenReturn(schedules);
+        when(reservationRepository.findAllByHorario_Agenda_Proveedor_IdAndFechaBetweenAndEstadoIgnoreCase(
+            any(), any(), any(), any())).thenReturn(List.of());
+
+        assertThat(catalogService.getAvailableSlots(SERVICE_ID)).isEmpty();
+    }
+
+    @Test
+    void simultaneousSlotsAreOrderedByScheduleIdentifier() {
+        when(serviceRepository.findById(SERVICE_ID)).thenReturn(Optional.of(service()));
+        when(scheduleRepository.findAllByAgenda_Proveedor_IdAndAgenda_ActivaTrueOrderByIdAsc(PROVIDER_ID))
+            .thenReturn(List.of(schedule(52, 3), schedule(51, 3)));
+        when(reservationRepository.findAllByHorario_Agenda_Proveedor_IdAndFechaBetweenAndEstadoIgnoreCase(
+            any(), any(), any(), any())).thenReturn(List.of());
+
+        assertThat(catalogService.getAvailableSlots(SERVICE_ID))
+            .filteredOn(slot -> slot.fecha().equals(TODAY) && slot.hora().equals(LocalTime.of(10, 30)))
+            .extracting(slot -> slot.horarioId())
+            .containsExactly(51, 52);
+    }
+
+    @Test
+    void nonBlockingReservationsDoNotHideAvailableSlots() {
+        HorarioDisponible schedule = schedule(51, 3);
+        Servicio service = service();
+        service.setRecursosCompatibles(List.of(resource(30)));
+        List<Reserva> reservations = List.of(
+            Reserva.builder().horario(schedule).fecha(TODAY).estado(null).build(),
+            Reserva.builder().horario(schedule).fecha(TODAY).estado("cancelada").build(),
+            Reserva.builder().horario(schedule).fecha(TODAY.plusDays(1)).estado("activa").build(),
+            Reserva.builder().horario(schedule).fecha(TODAY).estado("activa").build(),
+            Reserva.builder().horario(schedule).fecha(TODAY).estado("activa").recurso(resource(31)).build(),
+            Reserva.builder().horario(schedule).fecha(TODAY).estado("activa").recurso(resource(30)).build(),
+            Reserva.builder().horario(schedule).fecha(TODAY).estado("activa").recurso(resource(30))
+                .hora(LocalTime.of(10, 30)).build()
+        );
+        when(serviceRepository.findById(SERVICE_ID)).thenReturn(Optional.of(service));
+        when(scheduleRepository.findAllByAgenda_Proveedor_IdAndAgenda_ActivaTrueOrderByIdAsc(PROVIDER_ID))
+            .thenReturn(List.of(schedule));
+        when(reservationRepository.findAllByHorario_Agenda_Proveedor_IdAndFechaBetweenAndEstadoIgnoreCase(
+            any(), any(), any(), any())).thenReturn(reservations);
+
+        assertThat(catalogService.getAvailableSlots(SERVICE_ID))
+            .anyMatch(slot -> slot.fecha().equals(TODAY) && slot.hora().equals(LocalTime.of(10, 30)));
     }
 
     private static Servicio service() {

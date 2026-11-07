@@ -64,13 +64,12 @@ public class PasosRecursos {
     }
 
     @Cuando("el proveedor consulta el recurso registrado")
+    @Cuando("otro proveedor consulta ese recurso")
     public void proveedorConsultaRecursoRegistrado() {
-        autenticarProveedor("Proveedor");
-        api.get(RUTA_RECURSOS + "/" + recursoId);
+        consultResourceAsProvider();
     }
 
-    @Cuando("otro proveedor consulta ese recurso")
-    public void otroProveedorConsultaElRecurso() {
+    private void consultResourceAsProvider() {
         autenticarProveedor("Proveedor");
         api.get(RUTA_RECURSOS + "/" + recursoId);
     }

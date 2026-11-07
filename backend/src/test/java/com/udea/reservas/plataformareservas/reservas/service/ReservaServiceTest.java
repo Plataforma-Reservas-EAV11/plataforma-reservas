@@ -33,6 +33,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
@@ -403,6 +404,7 @@ class ReservaServiceTest {
     void crearReservaSinRecursosCompatiblesDebeFallar() {
         prepararDatosReservaValida(JUEVES);
         when(recursoRepository.findActiveCompatibleForUpdate(10, 20)).thenReturn(List.of());
+        LocalTime hora = LocalTime.of(10, 30);
 
         ReservaException exception = assertThrows(
             ReservaException.class,
@@ -410,7 +412,7 @@ class ReservaServiceTest {
                 1,
                 10,
                 FECHA_FUTURA,
-                LocalTime.of(10, 30)
+                hora
             )
         );
 
@@ -455,6 +457,7 @@ class ReservaServiceTest {
     @DisplayName("No convierte otras violaciones de integridad en conflicto de disponibilidad")
     void crearReservaNoOcultaOtrasViolacionesDeIntegridad() {
         prepararDatosReservaValida(JUEVES);
+        LocalTime hora = LocalTime.of(10, 30);
         DataIntegrityViolationException failure =
             new DataIntegrityViolationException("foreign key violation");
         when(reservaRepository.saveAndFlush(any(Reserva.class))).thenThrow(failure);
@@ -467,7 +470,7 @@ class ReservaServiceTest {
                     1,
                     10,
                     FECHA_FUTURA,
-                    LocalTime.of(10, 30)
+                    hora
                 )
             )
         );
@@ -602,6 +605,39 @@ class ReservaServiceTest {
         assertEquals("La reserva no está activa.", exception.getMessage());
         assertEquals(HttpStatus.BAD_REQUEST, exception.getStatus());
         verify(reservaRepository, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(ints = {0, -1})
+    void invalidServiceDurationIsRejected(Integer duration) {
+        prepararDatosReservaValida(JUEVES);
+        Servicio service = crearServicio();
+        service.setDuracionMinutos(duration);
+        when(servicioRepository.findActivoForUpdate(10)).thenReturn(Optional.of(service));
+        LocalTime time = LocalTime.of(10, 30);
+
+        ReservaException error = assertThrows(ReservaException.class,
+            () -> reservaServiceImpl.crearReserva(1, 10, FECHA_FUTURA, time));
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
+        assertEquals("La duración del servicio no es válida.", error.getMessage());
+        verify(reservaRepository, never()).saveAndFlush(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {true, false})
+    void scheduleWithoutMatchingProviderIsRejected(boolean missingProvider) {
+        prepararDatosReservaValida(JUEVES);
+        Agenda agenda = crearAgenda(true);
+        agenda.setProveedor(missingProvider ? null : Proveedor.builder().id(21).build());
+        when(agendaRepository.findByServicio_Id(10)).thenReturn(Optional.of(agenda));
+        LocalTime time = LocalTime.of(10, 30);
+
+        ReservaException error = assertThrows(ReservaException.class,
+            () -> reservaServiceImpl.crearReserva(1, 10, FECHA_FUTURA, time));
+        assertEquals(HttpStatus.BAD_REQUEST, error.getStatus());
+        assertEquals("La agenda no pertenece al proveedor del servicio.", error.getMessage());
+        verify(reservaRepository, never()).saveAndFlush(any());
     }
 
     private void prepararDatosReservaValida(int diaSemana) {

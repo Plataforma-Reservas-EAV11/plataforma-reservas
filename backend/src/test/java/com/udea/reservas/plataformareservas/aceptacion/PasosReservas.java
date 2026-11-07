@@ -57,10 +57,9 @@ public class PasosReservas {
     }
 
     @Cuando("{string} reserva ese horario a las {string}")
+    @Cuando("{string} reserva ese servicio a las {string}")
     public void reservaEseHorario(String nombre, String hora) {
-        autenticarComo(nombre);
-        reservar(datos.servicioId(), datos.fechaHorario(), hora);
-        guardarReservaCreada(nombre);
+        reserveService(nombre, hora, datos.servicioId(), true);
     }
 
     @Cuando("{string} reserva ese horario para ayer a las {string}")
@@ -119,23 +118,18 @@ public class PasosReservas {
         assertThat(codigosSimultaneos).containsExactlyInAnyOrder(codigoA, codigoB);
     }
 
-    @Cuando("{string} reserva ese servicio a las {string}")
-    public void reservaEseServicio(String nombre, String hora) {
-        autenticarComo(nombre);
-        reservar(datos.servicioId(), datos.fechaHorario(), hora);
-        guardarReservaCreada(nombre);
-    }
-
     @Cuando("{string} reserva el otro servicio a las {string}")
+    @Cuando("{string} reserva el servicio sin recursos a las {string}")
     public void reservaOtroServicio(String nombre, String hora) {
-        autenticarComo(nombre);
-        reservar(datos.servicioAlternoId(), datos.fechaHorario(), hora);
+        reserveService(nombre, hora, datos.servicioAlternoId(), false);
     }
 
-    @Cuando("{string} reserva el servicio sin recursos a las {string}")
-    public void reservaServicioSinRecursos(String nombre, String hora) {
-        autenticarComo(nombre);
-        reservar(datos.servicioAlternoId(), datos.fechaHorario(), hora);
+    private void reserveService(String userName, String time, Integer serviceId, boolean recordReservation) {
+        autenticarComo(userName);
+        reservar(serviceId, datos.fechaHorario(), time);
+        if (recordReservation) {
+            guardarReservaCreada(userName);
+        }
     }
 
     @Entonces("ambas reservas usan recursos diferentes")

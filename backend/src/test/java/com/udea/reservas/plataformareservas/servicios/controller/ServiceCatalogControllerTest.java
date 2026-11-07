@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.udea.reservas.plataformareservas.common.BusinessRuleException;
 import com.udea.reservas.plataformareservas.common.exception.GlobalExceptionHandler;
+import com.udea.reservas.plataformareservas.common.exception.ProviderApiExceptionHandler;
 import com.udea.reservas.plataformareservas.servicios.dto.AvailableSlotResponse;
 import com.udea.reservas.plataformareservas.servicios.dto.ProviderServiceResponse;
 import com.udea.reservas.plataformareservas.servicios.service.ServiceCatalogService;
@@ -39,7 +40,7 @@ class ServiceCatalogControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
-            .setControllerAdvice(new GlobalExceptionHandler())
+            .setControllerAdvice(new ProviderApiExceptionHandler(new GlobalExceptionHandler()), new GlobalExceptionHandler())
             .build();
     }
 
