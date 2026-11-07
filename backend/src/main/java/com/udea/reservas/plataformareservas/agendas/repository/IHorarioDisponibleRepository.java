@@ -2,6 +2,8 @@ package com.udea.reservas.plataformareservas.agendas.repository;
 
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
 import java.time.LocalTime;
+import java.util.List;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.repository.NoRepositoryBean;
 
@@ -16,5 +18,10 @@ public interface IHorarioDisponibleRepository
         Integer diaSemana,
         LocalTime horaFinNueva,
         LocalTime horaInicioNueva
+    );
+
+    @EntityGraph(attributePaths = "agenda")
+    List<HorarioDisponible> findAllByAgenda_Proveedor_IdAndAgenda_ActivaTrueOrderByIdAsc(
+        Integer proveedorId
     );
 }

@@ -29,7 +29,10 @@ public class ApiSecurityConfiguration {
                 "/api/reservas/**",
                 "/api/agendas",
                 "/api/agendas/**",
-                "/api/v1/providers/me/services"
+                "/api/v1/providers/me/services",
+                "/api/v1/providers",
+                "/api/v1/providers/*/services",
+                "/api/v1/services/*/availability"
             )
             .authorizeHttpRequests(authorize ->
                 authorize

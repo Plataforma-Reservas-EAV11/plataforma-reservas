@@ -172,6 +172,62 @@ HAVING COUNT(*) > 1;
 ```
 No se eliminan ni combinan perfiles automáticamente. La interfaz web no está en este repositorio.
 
+## HU: Consultar servicios y horarios disponibles
+
+Las tres consultas requieren una sesión iniciada. Son operaciones `GET` y no requieren token CSRF. Las respuestas exitosas usan el sobre `{ "message": "...", "data": ... }`.
+
+### Listar proveedores
+
+`GET /api/v1/providers?page=0&size=20` (página desde cero; tamaño entre 1 y 100).
+
+La respuesta expone sólo el identificador y nombre del negocio, con orden estable por nombre e identificador:
+```json
+{
+  "message": "Proveedores consultados correctamente.",
+  "data": {
+    "content": [{ "id": 4, "nombre": "Salón Central" }],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1,
+    "first": true,
+    "last": true,
+    "empty": false
+  }
+}
+```
+
+### Listar servicios de un proveedor
+
+`GET /api/v1/providers/{providerId}/services`
+
+Devuelve `data: []` si el proveedor existe pero no tiene servicios; un proveedor inexistente devuelve `404`.
+```json
+{
+  "message": "Servicios consultados correctamente.",
+  "data": [{
+    "id": 12,
+    "nombre": "Corte",
+    "duracionMinutos": 30,
+    "proveedorNombre": "Salón Central"
+  }]
+}
+```
+
+### Consultar horarios libres de un servicio
+
+`GET /api/v1/services/{serviceId}/availability`
+
+La respuesta enumera turnos futuros de los próximos 30 días (incluido el día actual), formados según el día de semana y el intervalo del horario, sólo de agendas activas. No incluye turnos cuya duración no cabe dentro del bloque, turnos pasados ni fechas que ya tengan una reserva `activa` para el horario. La última regla refleja el índice único actual de la base de datos sobre `(horario_id, fecha)` para reservas activas. Si no quedan turnos libres, devuelve `data: []`; un servicio inexistente devuelve `404`.
+```json
+{
+  "message": "Horarios disponibles consultados correctamente.",
+  "data": [{ "horarioId": 51, "fecha": "2026-11-06", "hora": "08:00:00" }]
+}
+```
+
+**Límite del modelo actual:** `servicio` se relaciona con `proveedor`, mientras que `agenda`, `horario_disponible` y `reserva` no tienen `servicio_id`. Por compatibilidad, la consulta usa las agendas activas del proveedor dueño del servicio y resta las reservas existentes de esas agendas; por ello, servicios distintos del mismo proveedor pueden mostrar horarios iguales. No se agregó una relación ni se modificó el esquema. La reserva existente continúa recibiendo `horarioId`, fecha y hora y no valida un `servicioId`.
+
 ## Estructura del repositorio
 
 ```

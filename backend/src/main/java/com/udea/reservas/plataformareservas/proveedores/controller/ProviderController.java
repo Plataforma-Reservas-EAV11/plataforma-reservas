@@ -6,6 +6,8 @@ import com.udea.reservas.plataformareservas.common.BusinessRuleException;
 import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistrationRequest;
 import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistrationResponse;
 import com.udea.reservas.plataformareservas.proveedores.service.ProviderRegistrationService;
+import com.udea.reservas.plataformareservas.servicios.dto.ProviderPageResponse;
+import com.udea.reservas.plataformareservas.servicios.service.ServiceCatalogService;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -15,9 +17,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -33,6 +37,19 @@ public class ProviderController {
         "Registro de proveedor exitoso. Ya puedes iniciar sesión.";
 
     private final ProviderRegistrationService registrationService;
+
+    private final ServiceCatalogService serviceCatalogService;
+
+    @GetMapping
+    public ApiSuccessResponse<ProviderPageResponse> listProviders(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size
+    ) {
+        return new ApiSuccessResponse<>(
+            "Proveedores consultados correctamente.",
+            serviceCatalogService.getProviders(page, size)
+        );
+    }
 
     @PostMapping("/register")
     public ResponseEntity<ApiSuccessResponse<ProviderRegistrationResponse>> register(
