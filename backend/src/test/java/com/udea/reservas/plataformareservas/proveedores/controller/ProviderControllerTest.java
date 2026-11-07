@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.udea.reservas.plataformareservas.common.BusinessRuleException;
 import com.udea.reservas.plataformareservas.common.exception.GlobalExceptionHandler;
+import com.udea.reservas.plataformareservas.common.exception.ProviderApiExceptionHandler;
 import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistrationRequest;
 import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistrationResponse;
 import com.udea.reservas.plataformareservas.proveedores.service.ProviderRegistrationService;
@@ -50,7 +51,7 @@ class ProviderControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(providerController)
-            .setControllerAdvice(new GlobalExceptionHandler())
+            .setControllerAdvice(new ProviderApiExceptionHandler(new GlobalExceptionHandler()), new GlobalExceptionHandler())
             .build();
         objectMapper = new ObjectMapper();
     }

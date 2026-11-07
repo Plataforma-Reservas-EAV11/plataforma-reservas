@@ -5,6 +5,7 @@ import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
 import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
 import com.udea.reservas.plataformareservas.proveedores.repository.IProveedorRepository;
+import com.udea.reservas.plataformareservas.recursos.model.Recurso;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
 import com.udea.reservas.plataformareservas.servicios.dto.AvailableSlotResponse;
@@ -19,15 +20,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.Objects;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,12 +53,8 @@ public class ServiceCatalogService {
             );
         }
 
-        Page<Proveedor> providers = providerRepository.findAll(
-            PageRequest.of(
-                page,
-                size,
-                Sort.by(Sort.Order.asc("nombreNegocio"), Sort.Order.asc("id"))
-            )
+        Page<Proveedor> providers = providerRepository.findAllByOrderByNombreNegocioAscIdAsc(
+            PageRequest.of(page, size)
         );
         List<ProviderSummaryResponse> content = providers.getContent().stream()
             .map(ServiceCatalogService::toProviderSummary)
@@ -100,6 +93,7 @@ public class ServiceCatalogService {
     public List<AvailableSlotResponse> getAvailableSlots(Integer serviceId) {
         requirePositiveId(serviceId, "serviceId");
         Servicio service = serviceRepository.findById(serviceId)
+            .filter(servicio -> !servicio.isEliminado())
             .orElseThrow(() -> new BusinessRuleException(
                 "SERVICE_NOT_FOUND",
                 "El servicio solicitado no existe.",
@@ -126,32 +120,62 @@ public class ServiceCatalogService {
                 endDate,
                 ACTIVE_RESERVATION
             );
-        Set<ReservedScheduleDate> reservedScheduleDates = reservations.stream()
-            .map(ServiceCatalogService::toReservedScheduleDate)
-            .collect(Collectors.toCollection(HashSet::new));
+        reservations.forEach(ServiceCatalogService::validateActiveReservation);
+        List<Recurso> activeResources = service.getRecursosCompatibles() == null
+            ? List.of()
+            : service.getRecursosCompatibles()
+                .stream()
+                .filter(Objects::nonNull)
+                .filter(recurso ->
+                    recurso.getId() != null
+                        && recurso.isActivo()
+                        && recurso.getProveedor() != null
+                        && providerId.equals(recurso.getProveedor().getId())
+                )
+                .toList();
+        if (activeResources.isEmpty()) {
+            return List.of();
+        }
 
         return schedules.stream()
-            .flatMap(schedule -> availableSlots(schedule, service, startDate, endDate, now).stream())
-            .filter(slot -> !reservedScheduleDates.contains(
-                new ReservedScheduleDate(slot.horarioId(), slot.fecha())
-            ))
-            .distinct()
-            .sorted(
-                Comparator.comparing(AvailableSlotResponse::fecha)
-                    .thenComparing(AvailableSlotResponse::hora)
-                    .thenComparing(AvailableSlotResponse::horarioId)
+            .flatMap(schedule ->
+                availableSlots(
+                    schedule,
+                    service,
+                    activeResources,
+                    reservations,
+                    startDate,
+                    endDate,
+                    now
+                ).stream()
             )
+            .distinct()
+            .sorted((first, second) -> {
+                int dateOrder = first.fecha().compareTo(second.fecha());
+                if (dateOrder != 0) {
+                    return dateOrder;
+                }
+                int timeOrder = first.hora().compareTo(second.hora());
+                return timeOrder == 0
+                    ? first.horarioId().compareTo(second.horarioId())
+                    : timeOrder;
+            })
             .toList();
     }
 
-    private static List<AvailableSlotResponse> availableSlots(
+    private List<AvailableSlotResponse> availableSlots(
         HorarioDisponible schedule,
         Servicio service,
+        List<Recurso> activeResources,
+        List<Reserva> reservations,
         LocalDate startDate,
         LocalDate endDate,
         LocalDateTime now
     ) {
         validateSchedule(schedule);
+        if (!belongsToService(schedule, service)) {
+            return List.of();
+        }
         int intervalMinutes = schedule.getDuracionSlotMin();
         int serviceDurationMinutes = service.getDuracionMinutos();
         long scheduleDurationMinutes = Duration.between(
@@ -177,13 +201,59 @@ public class ServiceCatalogService {
                     if (time.plusMinutes(serviceDurationMinutes).isAfter(schedule.getHoraFin())) {
                         continue;
                     }
-                    if (LocalDateTime.of(date, time).isAfter(now)) {
+                    LocalTime endTime = time.plusMinutes(serviceDurationMinutes);
+                    if (
+                        LocalDateTime.of(date, time).isAfter(now)
+                            && hasAvailableResource(
+                                activeResources,
+                                reservations,
+                                date,
+                                time,
+                                endTime
+                            )
+                    ) {
                         slots.add(new AvailableSlotResponse(schedule.getId(), date, time));
                     }
                 }
                 return slots.stream();
             })
             .toList();
+    }
+
+    private static boolean belongsToService(HorarioDisponible schedule, Servicio service) {
+        return schedule.getAgenda() != null
+            && schedule.getAgenda().isActiva()
+            && schedule.getAgenda().getServicio() != null
+            && Objects.equals(schedule.getAgenda().getServicio().getId(), service.getId())
+            && schedule.getAgenda().getProveedor() != null
+            && Objects.equals(
+                schedule.getAgenda().getProveedor().getId(),
+                service.getProveedor().getId()
+            );
+    }
+
+    private static boolean hasAvailableResource(
+        List<Recurso> resources,
+        List<Reserva> reservations,
+        LocalDate date,
+        LocalTime startTime,
+        LocalTime endTime
+    ) {
+        return resources.stream()
+            .anyMatch(resource ->
+                reservations.stream().noneMatch(reservation ->
+                    reservation != null
+                        && reservation.getEstado() != null
+                        && ACTIVE_RESERVATION.equalsIgnoreCase(reservation.getEstado())
+                        && date.equals(reservation.getFecha())
+                        && reservation.getRecurso() != null
+                        && resource.getId().equals(reservation.getRecurso().getId())
+                        && reservation.getHora() != null
+                        && reservation.getHoraFin() != null
+                        && startTime.isBefore(reservation.getHoraFin())
+                        && endTime.isAfter(reservation.getHora())
+                )
+            );
     }
 
     private static ProviderSummaryResponse toProviderSummary(
@@ -252,7 +322,7 @@ public class ServiceCatalogService {
         }
     }
 
-    private static ReservedScheduleDate toReservedScheduleDate(Reserva reservation) {
+    private static void validateActiveReservation(Reserva reservation) {
         if (
             reservation == null ||
             reservation.getHorario() == null ||
@@ -263,10 +333,6 @@ public class ServiceCatalogService {
                 "A stored active reservation must reference a schedule and date."
             );
         }
-        return new ReservedScheduleDate(
-            reservation.getHorario().getId(),
-            reservation.getFecha()
-        );
     }
 
     private static void requirePositiveId(Integer id, String parameterName) {
@@ -278,6 +344,4 @@ public class ServiceCatalogService {
             );
         }
     }
-
-    private record ReservedScheduleDate(Integer scheduleId, LocalDate date) {}
 }

@@ -1,20 +1,31 @@
 package com.udea.reservas.plataformareservas.reservas.service;
 
+import com.udea.reservas.plataformareservas.agendas.model.Agenda;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
+import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
+import com.udea.reservas.plataformareservas.reservas.dto.ActiveReservationResponse;
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
+import com.udea.reservas.plataformareservas.recursos.model.Recurso;
+import com.udea.reservas.plataformareservas.recursos.repository.RecursoRepository;
+import com.udea.reservas.plataformareservas.servicios.model.Servicio;
+import com.udea.reservas.plataformareservas.servicios.repository.IServicioRepository;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import com.udea.reservas.plataformareservas.usuarios.repository.UserRepository;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -45,13 +56,46 @@ public class ReservaServiceImpl implements ReservaService {
 
     private final IHorarioDisponibleRepository horarioDisponibleRepository;
 
+    private final IAgendaRepository agendaRepository;
+
+    private final IServicioRepository servicioRepository;
+
+    private final RecursoRepository recursoRepository;
+
     private final Clock clock;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ActiveReservationResponse> getActiveReservations(Integer usuarioId) {
+        return reservaRepository
+            .findAllByUsuario_IdAndEstadoIgnoreCaseOrderByFechaAscHoraAsc(
+                usuarioId,
+                ESTADO_ACTIVA
+            )
+            .stream()
+            .filter(Objects::nonNull)
+            .filter(reserva ->
+                reserva.getEstado() != null &&
+                ESTADO_ACTIVA.equalsIgnoreCase(reserva.getEstado())
+            )
+            .map(reserva ->
+                new ActiveReservationResponse(
+                    reserva.getId(),
+                    reserva.getServicio() == null ? null : reserva.getServicio().getNombre(),
+                    reserva.getFecha(),
+                    reserva.getHora(),
+                    reserva.getHoraFin(),
+                    reserva.getEstado()
+                )
+            )
+            .toList();
+    }
 
     @Override
     @Transactional
     public Reserva crearReserva(
         Integer usuarioId,
-        Integer horarioId,
+        Integer servicioId,
         LocalDate fecha,
         LocalTime hora
     ) {
@@ -59,14 +103,22 @@ public class ReservaServiceImpl implements ReservaService {
             .findById(usuarioId)
             .orElseThrow(noExiste("El usuario no existe."));
 
-        HorarioDisponible horario = horarioDisponibleRepository
-            .findById(horarioId)
-            .orElseThrow(noExiste("El horario no existe."));
+        Servicio servicio = servicioRepository.findActivoForUpdate(servicioId)
+            .orElseThrow(noExiste("El servicio no existe."));
+
+        Agenda agenda = agendaRepository.findByServicio_Id(servicioId)
+            .orElseThrow(noExiste("El servicio no tiene una agenda configurada."));
 
         // Regla: el horario debe estar habilitado por el proveedor (agenda activa)
         rechazarSi(
-            !horario.getAgenda().isActiva(),
+            !agenda.isActiva(),
             "Este horario no está habilitado por el proveedor.",
+            HttpStatus.BAD_REQUEST
+        );
+        rechazarSi(
+            agenda.getProveedor() == null
+                || !agenda.getProveedor().getId().equals(servicio.getProveedor().getId()),
+            "La agenda no pertenece al proveedor del servicio.",
             HttpStatus.BAD_REQUEST
         );
 
@@ -77,48 +129,96 @@ public class ReservaServiceImpl implements ReservaService {
             HttpStatus.BAD_REQUEST
         );
 
+        Integer duracion = servicio.getDuracionMinutos();
+        if (duracion == null || duracion <= 0) {
+            throw new ReservaException(
+                "La duración del servicio no es válida.",
+                HttpStatus.BAD_REQUEST
+            );
+        }
+        LocalTime horaFin = hora.plusMinutes(duracion);
+        rechazarSi(
+            !horaFin.isAfter(hora),
+            "La duración del servicio excede el horario disponible.",
+            HttpStatus.BAD_REQUEST
+        );
+
         // Regla: la fecha debe caer en el día de la semana del horario (0 = lunes ... 6 = domingo)
         int diaSemanaFecha = fecha.getDayOfWeek().getValue() - 1;
+        List<HorarioDisponible> horariosDelDia =
+            horarioDisponibleRepository.findAllByAgenda_IdAndDiaSemanaOrderByHoraInicioAsc(
+                agenda.getId(),
+                diaSemanaFecha
+            );
+        if (horariosDelDia.isEmpty()) {
+            throw new ReservaException(
+                "La fecha seleccionada no corresponde al día habilitado para este horario.",
+                HttpStatus.BAD_REQUEST
+            );
+        }
+
+        Optional<HorarioDisponible> bloqueQueContieneInicio = horariosDelDia.stream()
+            .filter(bloque -> !hora.isBefore(bloque.getHoraInicio()))
+            .filter(bloque -> hora.isBefore(bloque.getHoraFin()))
+            .findFirst();
+        if (bloqueQueContieneInicio.isEmpty()) {
+            throw new ReservaException(
+                "La hora seleccionada está fuera del rango de este horario.",
+                HttpStatus.BAD_REQUEST
+            );
+        }
+        HorarioDisponible horario = bloqueQueContieneInicio.get();
         rechazarSi(
-            !horario.getDiaSemana().equals(diaSemanaFecha),
-            "La fecha seleccionada no corresponde al día habilitado para este horario.",
+            horaFin.isAfter(horario.getHoraFin()),
+            "La duración del servicio excede el horario disponible.",
             HttpStatus.BAD_REQUEST
         );
 
-        // Regla: la hora debe estar dentro del rango del horario disponible
-        rechazarSi(
-            hora.isBefore(horario.getHoraInicio()) ||
-            !hora.isBefore(horario.getHoraFin()),
-            "La hora seleccionada está fuera del rango de este horario.",
-            HttpStatus.BAD_REQUEST
+        // Lock all eligible resources in a stable order so concurrent bookings
+        // serialize before checking their occupied intervals.
+        List<Recurso> recursos = recursoRepository.findActiveCompatibleForUpdate(
+            servicioId,
+            servicio.getProveedor().getId()
         );
+        if (recursos.isEmpty()) {
+            throw new ReservaException(
+                "El servicio aún no tiene recursos disponibles para reservar.",
+                HttpStatus.CONFLICT
+            );
+        }
 
-        // Regla: evitar doble reserva sobre el mismo horario y fecha
-        rechazarSi(
-            reservaRepository.existsByHorario_IdAndFechaAndHoraAndEstadoIgnoreCase(
-                horarioId,
-                fecha,
-                hora,
-                ESTADO_ACTIVA
-            ),
-            MENSAJE_NO_DISPONIBLE,
-            HttpStatus.CONFLICT
-        );
+        Recurso recursoDisponible = recursos.stream()
+            .filter(recurso ->
+                !reservaRepository.existsReservaActivaSolapada(
+                    recurso.getId(),
+                    fecha,
+                    hora,
+                    horaFin
+                )
+            )
+            .findFirst()
+            .orElseThrow(() ->
+                new ReservaException(MENSAJE_NO_DISPONIBLE, HttpStatus.CONFLICT)
+            );
 
         Reserva reserva = Reserva.builder()
             .usuario(usuario)
             .horario(horario)
+            .servicio(servicio)
+            .recurso(recursoDisponible)
             .fecha(fecha)
             .hora(hora)
+            .horaFin(horaFin)
             .estado(ESTADO_ACTIVA)
             .createdAt(LocalDateTime.now(clock))
             .build();
 
-        // El índice único de la base de datos resuelve las solicitudes simultáneas
-        // que pasaron la validación anterior al mismo tiempo.
         try {
-            return reservaRepository.save(reserva);
-        } catch (DataIntegrityViolationException _) {
+            return reservaRepository.saveAndFlush(reserva);
+        } catch (DataIntegrityViolationException exception) {
+            if (!esConflictoDeIntervalo(exception)) {
+                throw exception;
+            }
             throw new ReservaException(MENSAJE_NO_DISPONIBLE, HttpStatus.CONFLICT);
         }
     }
@@ -159,5 +259,21 @@ public class ReservaServiceImpl implements ReservaService {
 
     private static Supplier<ReservaException> noExiste(String mensaje) {
         return () -> new ReservaException(mensaje, HttpStatus.NOT_FOUND);
+    }
+
+    private static boolean esConflictoDeIntervalo(Throwable exception) {
+        Throwable actual = exception;
+        while (actual != null) {
+            if (
+                actual instanceof ConstraintViolationException violation
+                    && "ex_reserva_recurso_intervalo".equalsIgnoreCase(
+                        violation.getConstraintName()
+                    )
+            ) {
+                return true;
+            }
+            actual = actual.getCause();
+        }
+        return false;
     }
 }

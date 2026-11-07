@@ -37,7 +37,7 @@ public class ReservaController {
             @Valid @RequestBody CrearReservaRequest request) {
         Reserva reserva = reservaService.crearReserva(
                 usuario.getId(),
-                request.horarioId(),
+                request.servicioId(),
                 request.fecha(),
                 request.hora()
         );

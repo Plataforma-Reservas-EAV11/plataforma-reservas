@@ -6,8 +6,11 @@ import io.cucumber.java.es.Cuando;
 import io.cucumber.java.es.Dado;
 import io.cucumber.java.es.Entonces;
 import io.cucumber.java.es.Y;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import tools.jackson.databind.JsonNode;
 
 @RequiredArgsConstructor
 public class PasosServicios {
@@ -18,11 +21,104 @@ public class PasosServicios {
     private final DatosPrueba datos;
 
     private Integer usuarioId;
+    private Integer recursoId;
+    private final Map<String, Integer> serviciosPorNombre = new HashMap<>();
 
     @Dado("que existe el proveedor {string} con correo {string}")
     public void existeProveedor(String nombre, String email) {
         usuarioId = datos.crearProveedor(nombre, email);
         api.iniciarSesion(nombre, email, DatosPrueba.CONTRASENA_POR_DEFECTO);
+    }
+
+    @Dado("que el proveedor tiene el recurso {string}")
+    public void proveedorTieneRecurso(String nombre) {
+        recursoId = datos.crearRecursoDeProveedor(usuarioId, nombre);
+    }
+
+    @Dado("que el proveedor tiene el servicio {string} registrado")
+    public void proveedorTieneServicio(String nombre) {
+        serviciosPorNombre.put(nombre, datos.crearServicioDeUsuario(usuarioId, nombre));
+    }
+
+    @Dado("que existe otro proveedor {string} con correo {string} que tiene el servicio {string}")
+    public void otroProveedorTieneServicio(String proveedor, String email, String servicio) {
+        Integer otroUsuarioId = datos.crearProveedor(proveedor, email);
+        serviciosPorNombre.put(servicio, datos.crearServicioDeUsuario(otroUsuarioId, servicio));
+    }
+
+    @Dado("que el servicio {string} tiene una reserva {string}")
+    public void servicioTieneReserva(String servicio, String estado) {
+        datos.crearReservaDeServicio(serviciosPorNombre.get(servicio), "Cliente reservante", estado);
+    }
+
+    @Cuando("elimino el servicio {string}")
+    public void eliminoServicio(String nombre) {
+        api.delete(RUTA_SERVICIOS + "/" + serviciosPorNombre.get(nombre));
+    }
+
+    @Cuando("intento eliminar el servicio inexistente {int}")
+    public void eliminoServicioInexistente(int servicioId) {
+        api.delete(RUTA_SERVICIOS + "/" + servicioId);
+    }
+
+    @Cuando("intento eliminar el servicio {string} sin iniciar sesión")
+    public void eliminoServicioSinSesion(String nombre) {
+        api.sinSesion();
+        eliminoServicio(nombre);
+    }
+
+    @Entonces("el servicio {string} está {string}")
+    public void servicioEsta(String nombre, String estado) {
+        assertThat(estado).isIn("activo", "eliminado");
+        assertThat(datos.servicioEliminado(serviciosPorNombre.get(nombre)))
+            .isEqualTo("eliminado".equals(estado));
+    }
+
+    @Entonces("la reserva de {string} sigue en estado {string}")
+    public void reservaSigueEnEstado(String nombre, String estado) {
+        assertThat(datos.estadoDeReserva(nombre)).isEqualTo(estado);
+    }
+
+    @Entonces("el proveedor autenticado tiene {int} servicios activos")
+    public void proveedorTieneServiciosActivos(int total) {
+        assertThat(datos.contarServiciosActivosDeUsuario(usuarioId)).isEqualTo(total);
+    }
+
+    @Entonces("el servicio {string} no aparece en el catálogo")
+    public void servicioNoApareceEnCatalogo(String nombre) {
+        Integer idServicio = serviciosPorNombre.get(nombre);
+        api.get("/api/v1/providers/" + datos.proveedorDeServicio(idServicio) + "/services");
+        assertThat(api.ultimaRespuesta().statusCode()).isEqualTo(200);
+        JsonNode servicios = api.ultimoJson().get("data");
+        for (JsonNode servicio : servicios) {
+            assertThat(servicio.get("id").asInt()).isNotEqualTo(idServicio);
+        }
+    }
+
+    @Entonces("la disponibilidad del servicio {string} no se puede consultar")
+    public void disponibilidadServicioEliminado(String nombre) {
+        api.get("/api/v1/services/" + serviciosPorNombre.get(nombre) + "/availability");
+        assertThat(api.ultimaRespuesta().statusCode()).isEqualTo(404);
+        assertThat(api.ultimoJson().get("errorCode").asString()).isEqualTo("SERVICE_NOT_FOUND");
+    }
+
+    @Entonces("el servicio {string} no admite nuevas reservas")
+    public void servicioEliminadoNoAdmiteReservas(String nombre) {
+        api.iniciarSesion(
+            "Cliente reservante",
+            datos.emailDeUsuario("Cliente reservante"),
+            DatosPrueba.CONTRASENA_POR_DEFECTO
+        );
+        assertThat(api.ultimaRespuesta().statusCode()).isEqualTo(200);
+        api.postJson(
+            "/api/reservas",
+            Map.of(
+                "servicioId", serviciosPorNombre.get(nombre),
+                "fecha", datos.hoy().plusDays(7).toString(),
+                "hora", "09:00:00"
+            )
+        );
+        assertThat(api.ultimaRespuesta().statusCode()).isEqualTo(404);
     }
 
     @Dado("que existe el cliente {string} con correo {string}")
@@ -65,6 +161,23 @@ public class PasosServicios {
         api.postJson(
             RUTA_SERVICIOS,
             Map.of("nombre", nombre, "descripcion", descripcion, "duracion", duracion)
+        );
+    }
+
+    @Cuando("creo un servicio usando ese recurso")
+    public void creoServicioUsandoRecurso() {
+        api.postJson(
+            RUTA_SERVICIOS,
+            Map.of(
+                "nombre",
+                "Consulta",
+                "descripcion",
+                "Consulta general",
+                "duracion",
+                30,
+                "recursoIds",
+                List.of(recursoId)
+            )
         );
     }
 
@@ -113,6 +226,14 @@ public class PasosServicios {
     public void servicioGuardadoParaProveedorAutenticado(String nombre) {
         assertThat(api.ultimoJson().get("data").get("nombre").asString()).isEqualTo(nombre);
         assertThat(datos.contarServiciosDeUsuario(usuarioId)).isEqualTo(1);
+    }
+
+    @Entonces("el recurso queda asociado al servicio creado")
+    public void recursoAsociadoAlServicio() {
+        JsonNode data = api.ultimoJson().get("data");
+        Integer idServicio = data.get("id").asInt();
+        assertThat(data.get("recursoIds").get(0).asInt()).isEqualTo(recursoId);
+        assertThat(datos.contarRecursosCompatibles(idServicio)).isEqualTo(1);
     }
 
     @Y("el proveedor autenticado tiene {int} servicios guardados")

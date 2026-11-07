@@ -33,11 +33,15 @@ public class DatosPrueba {
 
     private Integer agendaId;
     private Integer horarioId;
+    private Integer proveedorId;
+    private Integer servicioId;
+    private Integer servicioAlternoId;
+    private Integer recursoId;
     private LocalDate fechaHorario;
 
     public void limpiarBaseDeDatos() {
         jdbc.execute(
-            "TRUNCATE reserva, horario_disponible, agenda, recurso, servicio, proveedor, usuario RESTART IDENTITY CASCADE"
+            "TRUNCATE reserva, horario_disponible, agenda, servicio_recurso, recurso, servicio, proveedor, usuario RESTART IDENTITY CASCADE"
         );
     }
 
@@ -88,6 +92,111 @@ public class DatosPrueba {
         );
     }
 
+    public int contarServiciosActivosDeUsuario(Integer usuarioId) {
+        return contar(
+            "SELECT count(*) FROM servicio s JOIN proveedor p ON p.id = s.proveedor_id WHERE p.usuario_id = ? AND NOT s.eliminado",
+            usuarioId
+        );
+    }
+
+    public Integer crearServicioDeUsuario(Integer usuarioId, String nombre) {
+        return jdbc.queryForObject(
+            "INSERT INTO servicio (proveedor_id, nombre, descripcion, duracion_minutos) "
+                + "SELECT id, ?, 'Servicio de prueba', 30 FROM proveedor WHERE usuario_id = ? RETURNING id",
+            Integer.class,
+            nombre,
+            usuarioId
+        );
+    }
+
+    public Integer proveedorDeServicio(Integer idServicio) {
+        return jdbc.queryForObject(
+            "SELECT proveedor_id FROM servicio WHERE id = ?", Integer.class, idServicio
+        );
+    }
+
+    public boolean servicioEliminado(Integer idServicio) {
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+            "SELECT eliminado FROM servicio WHERE id = ?", Boolean.class, idServicio
+        ));
+    }
+
+    public void crearReservaDeServicio(Integer idServicio, String nombreUsuario, String estado) {
+        Integer idUsuario = crearUsuario(
+            nombreUsuario,
+            nombreUsuario.toLowerCase(Locale.ROOT).replace(' ', '-') + "@test.com",
+            CONTRASENA_POR_DEFECTO,
+            "usuario"
+        );
+        Integer idProveedor = jdbc.queryForObject(
+            "SELECT proveedor_id FROM servicio WHERE id = ?", Integer.class, idServicio
+        );
+        Integer idRecurso = jdbc.queryForObject(
+            "INSERT INTO recurso (proveedor_id, nombre, tipo) VALUES (?, 'Recurso de prueba', 'silla') RETURNING id",
+            Integer.class, idProveedor
+        );
+        jdbc.update("INSERT INTO servicio_recurso (servicio_id, recurso_id) VALUES (?, ?)", idServicio, idRecurso);
+        Integer idAgenda = jdbc.queryForObject(
+            "INSERT INTO agenda (proveedor_id, servicio_id, activa) VALUES (?, ?, true) RETURNING id",
+            Integer.class, idProveedor, idServicio
+        );
+        LocalDate fecha = LocalDate.now(clock).plusDays(7);
+        Integer idHorario = jdbc.queryForObject(
+            "INSERT INTO horario_disponible (agenda_id, dia_semana, hora_inicio, hora_fin, duracion_slot_min) "
+                + "VALUES (?, ?, '08:00', '12:00', 30) RETURNING id",
+            Integer.class, idAgenda, fecha.getDayOfWeek().getValue() - 1
+        );
+        Integer idReserva = jdbc.queryForObject(
+            "INSERT INTO reserva (usuario_id, horario_id, servicio_id, recurso_id, fecha, hora, hora_fin, estado) "
+                + "VALUES (?, ?, ?, ?, ?, '09:00', '09:30', ?) RETURNING id",
+            Integer.class, idUsuario, idHorario, idServicio, idRecurso, fecha, estado
+        );
+        reservasPorUsuario.put(nombreUsuario, idReserva);
+    }
+
+    public Integer crearRecursoDeProveedor(Integer usuarioId, String nombre) {
+        Integer idProveedor = jdbc.queryForObject(
+            "SELECT id FROM proveedor WHERE usuario_id = ?",
+            Integer.class,
+            usuarioId
+        );
+        return jdbc.queryForObject(
+            "INSERT INTO recurso (proveedor_id, nombre, tipo, activo) VALUES (?, ?, 'sala', true) RETURNING id",
+            Integer.class,
+            idProveedor,
+            nombre
+        );
+    }
+
+    public int contarRecursosCompatibles(Integer idServicio) {
+        return contar(
+            "SELECT count(*) FROM servicio_recurso WHERE servicio_id = ?",
+            idServicio
+        );
+    }
+
+    public Integer crearServicioDeOtroProveedor(String nombre, String email) {
+        Integer otroUsuario = crearUsuario(
+            nombre,
+            email,
+            CONTRASENA_POR_DEFECTO,
+            "proveedor"
+        );
+        Integer otroProveedor = crearPerfilProveedor(otroUsuario, nombre + " negocio");
+        return jdbc.queryForObject(
+            "INSERT INTO servicio (proveedor_id, nombre, descripcion, duracion_minutos) VALUES (?, 'Servicio externo', 'Servicio de otro proveedor', 30) RETURNING id",
+            Integer.class,
+            otroProveedor
+        );
+    }
+
+    public int contarReservasActivasDeUsuario(String nombreUsuario) {
+        return contar(
+            "SELECT count(*) FROM reserva WHERE usuario_id = ? AND estado = 'activa'",
+            idDeUsuario(nombreUsuario)
+        );
+    }
+
     public Integer idDeUsuario(String nombre) {
         return usuariosPorNombre.get(nombre);
     }
@@ -109,24 +218,101 @@ public class DatosPrueba {
         agendaId = crearProveedorConAgenda("Proveedor", "proveedor@test.com");
     }
 
-    /** Crea un proveedor (cuenta, negocio, recurso y agenda activa) y devuelve el id de su agenda. */
+    /** Crea un proveedor, servicio, recurso compatible y agenda activa para las pruebas de reservas. */
     public Integer crearProveedorConAgenda(String nombre, String email) {
         Integer usuarioId = crearUsuario(nombre, email, CONTRASENA_POR_DEFECTO, "proveedor");
-        Integer proveedorId = jdbc.queryForObject(
+        proveedorId = jdbc.queryForObject(
             "INSERT INTO proveedor (usuario_id, nombre_negocio) VALUES (?, 'Barbería Style') RETURNING id",
             Integer.class,
             usuarioId
         );
-        Integer recursoId = jdbc.queryForObject(
-            "INSERT INTO recurso (proveedor_id, nombre, tipo) VALUES (?, 'Silla 1', 'silla') RETURNING id",
+        servicioId = jdbc.queryForObject(
+            "INSERT INTO servicio (proveedor_id, nombre, descripcion, duracion_minutos) VALUES (?, 'Corte', 'Corte de cabello', 30) RETURNING id",
             Integer.class,
             proveedorId
         );
-        return jdbc.queryForObject(
-            "INSERT INTO agenda (proveedor_id, recurso_id, nombre, activa) VALUES (?, ?, 'Agenda principal', true) RETURNING id",
+        recursoId = insertarRecurso("Silla 1", true);
+        jdbc.update(
+            "INSERT INTO servicio_recurso (servicio_id, recurso_id) VALUES (?, ?)",
+            servicioId,
+            recursoId
+        );
+        agendaId = jdbc.queryForObject(
+            "INSERT INTO agenda (proveedor_id, servicio_id, nombre, activa) VALUES (?, ?, 'Agenda principal', true) RETURNING id",
             Integer.class,
             proveedorId,
+            servicioId
+        );
+        return agendaId;
+    }
+
+    public void agregarRecursoCompatible(String nombre, boolean activo) {
+        Integer nuevoRecursoId = insertarRecurso(nombre, activo);
+        jdbc.update(
+            "INSERT INTO servicio_recurso (servicio_id, recurso_id) VALUES (?, ?)",
+            servicioId,
+            nuevoRecursoId
+        );
+    }
+
+    public void crearServicioAlternoParaMismoRecurso() {
+        servicioAlternoId = jdbc.queryForObject(
+            "INSERT INTO servicio (proveedor_id, nombre, descripcion, duracion_minutos) VALUES (?, 'Afeitado', 'Afeitado de barba', 30) RETURNING id",
+            Integer.class,
+            proveedorId
+        );
+        jdbc.update(
+            "INSERT INTO servicio_recurso (servicio_id, recurso_id) VALUES (?, ?)",
+            servicioAlternoId,
             recursoId
+        );
+        Integer agendaAlternaId = jdbc.queryForObject(
+            "INSERT INTO agenda (proveedor_id, servicio_id, nombre, activa) VALUES (?, ?, 'Agenda alterna', true) RETURNING id",
+            Integer.class,
+            proveedorId,
+            servicioAlternoId
+        );
+        jdbc.update(
+            "INSERT INTO horario_disponible (agenda_id, dia_semana, hora_inicio, hora_fin, duracion_slot_min) VALUES (?, ?, '08:00', '12:00', 30)",
+            agendaAlternaId,
+            fechaHorario.getDayOfWeek().getValue() - 1
+        );
+    }
+
+    public void crearServicioAlternoSinRecursos() {
+        servicioAlternoId = jdbc.queryForObject(
+            "INSERT INTO servicio (proveedor_id, nombre, descripcion, duracion_minutos) VALUES (?, 'Consulta virtual', 'Asesoría virtual', 30) RETURNING id",
+            Integer.class,
+            proveedorId
+        );
+        Integer agendaAlternaId = jdbc.queryForObject(
+            "INSERT INTO agenda (proveedor_id, servicio_id, nombre, activa) VALUES (?, ?, 'Agenda sin recursos', true) RETURNING id",
+            Integer.class,
+            proveedorId,
+            servicioAlternoId
+        );
+        jdbc.update(
+            "INSERT INTO horario_disponible (agenda_id, dia_semana, hora_inicio, hora_fin, duracion_slot_min) VALUES (?, ?, '08:00', '12:00', 30)",
+            agendaAlternaId,
+            fechaHorario.getDayOfWeek().getValue() - 1
+        );
+    }
+
+    public Integer recursoDeReserva(String nombreUsuario) {
+        return jdbc.queryForObject(
+            "SELECT recurso_id FROM reserva WHERE id = ?",
+            Integer.class,
+            idDeReserva(nombreUsuario)
+        );
+    }
+
+    private Integer insertarRecurso(String nombre, boolean activo) {
+        return jdbc.queryForObject(
+            "INSERT INTO recurso (proveedor_id, nombre, tipo, activo) VALUES (?, ?, 'silla', ?) RETURNING id",
+            Integer.class,
+            proveedorId,
+            nombre,
+            activo
         );
     }
 
@@ -167,18 +353,33 @@ public class DatosPrueba {
         return horarioId;
     }
 
+    public Integer servicioId() {
+        return servicioId;
+    }
+
+    public Integer recursoId() {
+        return recursoId;
+    }
+
+    public Integer servicioAlternoId() {
+        return servicioAlternoId;
+    }
+
     public LocalDate fechaHorario() {
         return fechaHorario;
     }
 
     public Integer crearReserva(String nombreUsuario, LocalTime hora, String estado) {
         Integer id = jdbc.queryForObject(
-            "INSERT INTO reserva (usuario_id, horario_id, fecha, hora, estado) VALUES (?, ?, ?, ?, ?) RETURNING id",
+            "INSERT INTO reserva (usuario_id, horario_id, servicio_id, recurso_id, fecha, hora, hora_fin, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
             Integer.class,
             idDeUsuario(nombreUsuario),
             horarioId,
+            servicioId,
+            recursoId,
             fechaHorario,
             hora,
+            hora.plusMinutes(30),
             estado
         );
         reservasPorUsuario.put(nombreUsuario, id);
@@ -208,6 +409,14 @@ public class DatosPrueba {
     public int contarReservasActivasDelHorario() {
         return contar(
             "SELECT count(*) FROM reserva WHERE horario_id = ? AND fecha = ? AND estado = 'activa'",
+            horarioId,
+            fechaHorario
+        );
+    }
+
+    public int contarRecursosDistintosDeReservasActivas() {
+        return contar(
+            "SELECT count(DISTINCT recurso_id) FROM reserva WHERE horario_id = ? AND fecha = ? AND estado = 'activa'",
             horarioId,
             fechaHorario
         );

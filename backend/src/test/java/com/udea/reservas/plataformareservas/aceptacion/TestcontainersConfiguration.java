@@ -7,7 +7,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class TestcontainersConfiguration {
 
     // Se usa el mismo script que define la base de datos real, de modo que las
     // restricciones (CHECK, índice único parcial) se prueban tal como existen.
