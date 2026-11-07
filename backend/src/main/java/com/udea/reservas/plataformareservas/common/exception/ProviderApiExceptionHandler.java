@@ -41,14 +41,16 @@ public class ProviderApiExceptionHandler {
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<?> handleValidation(MethodArgumentNotValidException exception, HandlerMethod handler) {
+    public ResponseEntity<Object> handleValidation(MethodArgumentNotValidException exception, HandlerMethod handler) {
         if (handler.getBeanType() == ServiceCatalogController.class) {
-            return globalExceptionHandler.handleValidationException(exception);
+            var response = globalExceptionHandler.handleValidationException(exception);
+            return new ResponseEntity<>(response.getBody(), response.getHeaders(), response.getStatusCode());
         }
         List<String> details = exception.getBindingResult().getFieldErrors().stream()
             .map(error -> error.getField() + " " + error.getDefaultMessage())
             .toList();
-        return respond(handler, HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Datos inválidos.", details);
+        var response = respond(handler, HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", "Datos inválidos.", details);
+        return new ResponseEntity<>(response.getBody(), response.getHeaders(), response.getStatusCode());
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
