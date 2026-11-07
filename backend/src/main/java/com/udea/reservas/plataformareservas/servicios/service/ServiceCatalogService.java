@@ -93,6 +93,7 @@ public class ServiceCatalogService {
     public List<AvailableSlotResponse> getAvailableSlots(Integer serviceId) {
         requirePositiveId(serviceId, "serviceId");
         Servicio service = serviceRepository.findById(serviceId)
+            .filter(servicio -> !servicio.isEliminado())
             .orElseThrow(() -> new BusinessRuleException(
                 "SERVICE_NOT_FOUND",
                 "El servicio solicitado no existe.",

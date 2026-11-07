@@ -23,7 +23,8 @@ CREATE TABLE servicio (
     proveedor_id INTEGER NOT NULL REFERENCES proveedor(id),
     nombre VARCHAR(150) NOT NULL,
     descripcion VARCHAR(500) NOT NULL,
-    duracion_minutos INTEGER NOT NULL CHECK (duracion_minutos > 0)
+    duracion_minutos INTEGER NOT NULL CHECK (duracion_minutos > 0),
+    eliminado BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE TABLE recurso (

@@ -71,13 +71,13 @@ public class PasosRecursos {
 
     @Cuando("otro proveedor consulta ese recurso")
     public void otroProveedorConsultaElRecurso() {
-        autenticarProveedor("Otro proveedor");
+        autenticarProveedor("Proveedor");
         api.get(RUTA_RECURSOS + "/" + recursoId);
     }
 
     @Cuando("otro proveedor intenta actualizar ese recurso")
     public void otroProveedorActualizaRecurso() {
-        autenticarProveedor("Otro proveedor");
+        autenticarProveedor("Proveedor");
         api.putJson(
             RUTA_RECURSOS + "/" + recursoId,
             Map.of("nombre", "Modificado", "tipo", "sala")

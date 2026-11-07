@@ -24,6 +24,9 @@ Característica: Eliminar un servicio
     Entonces la respuesta tiene el código HTTP 200
     Y el servicio "Corte" está "eliminado"
     Y la reserva de "Cliente reservante" sigue en estado "cancelada"
+    Y el servicio "Corte" no aparece en el catálogo
+    Y la disponibilidad del servicio "Corte" no se puede consultar
+    Y el servicio "Corte" no admite nuevas reservas
 
   @excepcional @P1
   Escenario: Rechazar eliminar un servicio con reservas activas

@@ -18,6 +18,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,6 +44,15 @@ public class ServicioController {
         ServicioResponse response = servicioService.crearServicio(usuario.getId(), request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiSuccessResponse<>("Servicio creado exitosamente.", response));
+    }
+
+    @DeleteMapping("/{servicioId}")
+    public ResponseEntity<ApiSuccessResponse<Void>> eliminarServicio(
+        @AuthenticationPrincipal UserPrincipal usuario,
+        @PathVariable Integer servicioId
+    ) {
+        servicioService.eliminarServicio(usuario.getId(), servicioId);
+        return ResponseEntity.ok(new ApiSuccessResponse<>("Servicio eliminado exitosamente.", null));
     }
 
     @ExceptionHandler(BusinessRuleException.class)

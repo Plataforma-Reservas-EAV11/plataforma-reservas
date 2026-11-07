@@ -30,6 +30,7 @@ public class ApiSecurityConfiguration {
                 "/api/agendas",
                 "/api/agendas/**",
                 "/api/v1/providers/me/services",
+                "/api/v1/providers/me/services/**",
                 "/api/v1/providers",
                 "/api/v1/providers/*/services",
                 "/api/v1/services/*/availability",
@@ -41,6 +42,7 @@ public class ApiSecurityConfiguration {
                 authorize
                     .requestMatchers(
                         "/api/v1/providers/me/services",
+                        "/api/v1/providers/me/services/**",
                         "/api/v1/providers/me/resources",
                         "/api/v1/providers/me/resources/**"
                     )

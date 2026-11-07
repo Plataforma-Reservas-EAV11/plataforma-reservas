@@ -103,7 +103,7 @@ public class ReservaServiceImpl implements ReservaService {
             .findById(usuarioId)
             .orElseThrow(noExiste("El usuario no existe."));
 
-        Servicio servicio = servicioRepository.findById(servicioId)
+        Servicio servicio = servicioRepository.findActivoForUpdate(servicioId)
             .orElseThrow(noExiste("El servicio no existe."));
 
         Agenda agenda = agendaRepository.findByServicio_Id(servicioId)

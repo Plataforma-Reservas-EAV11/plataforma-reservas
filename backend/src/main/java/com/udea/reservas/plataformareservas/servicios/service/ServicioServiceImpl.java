@@ -7,6 +7,7 @@ import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
 import com.udea.reservas.plataformareservas.proveedores.repository.IProveedorRepository;
 import com.udea.reservas.plataformareservas.recursos.model.Recurso;
 import com.udea.reservas.plataformareservas.recursos.repository.RecursoRepository;
+import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
 import com.udea.reservas.plataformareservas.servicios.dto.CrearServicioRequest;
 import com.udea.reservas.plataformareservas.servicios.dto.ServicioResponse;
 import com.udea.reservas.plataformareservas.servicios.model.Servicio;
@@ -26,27 +27,12 @@ public class ServicioServiceImpl implements ServicioService {
     private final IServicioRepository servicioRepository;
     private final IAgendaRepository agendaRepository;
     private final RecursoRepository recursoRepository;
+    private final IReservaRepository reservaRepository;
 
     @Override
     @Transactional
     public ServicioResponse crearServicio(Integer usuarioId, CrearServicioRequest request) {
-        List<Proveedor> perfiles = proveedorRepository.findAllByUsuario_Id(usuarioId);
-        if (perfiles.isEmpty()) {
-            throw new BusinessRuleException(
-                "PROVIDER_PROFILE_NOT_FOUND",
-                "No existe un perfil de proveedor para el usuario autenticado.",
-                HttpStatus.NOT_FOUND.value()
-            );
-        }
-        if (perfiles.size() > 1) {
-            throw new BusinessRuleException(
-                "PROVIDER_PROFILE_AMBIGUOUS",
-                "El usuario tiene más de un perfil de proveedor; no se creó el servicio.",
-                HttpStatus.CONFLICT.value()
-            );
-        }
-
-        Proveedor proveedor = perfiles.getFirst();
+        Proveedor proveedor = obtenerProveedor(usuarioId);
         List<Integer> recursoIds = request.recursoIds() == null
             ? List.of()
             : request.recursoIds();
@@ -97,5 +83,46 @@ public class ServicioServiceImpl implements ServicioService {
             guardado.getDuracionMinutos(),
             idsRecursos
         );
+    }
+
+    @Override
+    @Transactional
+    public void eliminarServicio(Integer usuarioId, Integer servicioId) {
+        Proveedor proveedor = obtenerProveedor(usuarioId);
+        Servicio servicio = servicioRepository.findActivoForUpdate(servicioId)
+            .filter(encontrado -> encontrado.getProveedor().getId().equals(proveedor.getId()))
+            .orElseThrow(() -> new BusinessRuleException(
+                "SERVICE_NOT_FOUND",
+                "El servicio no existe para el proveedor autenticado.",
+                HttpStatus.NOT_FOUND.value()
+            ));
+        if (reservaRepository.existsByServicio_IdAndEstadoIgnoreCase(servicioId, "activa")) {
+            throw new BusinessRuleException(
+                "SERVICE_HAS_ACTIVE_RESERVATIONS",
+                "El servicio tiene reservas activas.",
+                HttpStatus.CONFLICT.value()
+            );
+        }
+        servicio.setEliminado(true);
+        servicioRepository.save(servicio);
+    }
+
+    private Proveedor obtenerProveedor(Integer usuarioId) {
+        List<Proveedor> perfiles = proveedorRepository.findAllByUsuario_Id(usuarioId);
+        if (perfiles.isEmpty()) {
+            throw new BusinessRuleException(
+                "PROVIDER_PROFILE_NOT_FOUND",
+                "No existe un perfil de proveedor para el usuario autenticado.",
+                HttpStatus.NOT_FOUND.value()
+            );
+        }
+        if (perfiles.size() > 1) {
+            throw new BusinessRuleException(
+                "PROVIDER_PROFILE_AMBIGUOUS",
+                "El usuario tiene más de un perfil de proveedor.",
+                HttpStatus.CONFLICT.value()
+            );
+        }
+        return perfiles.getFirst();
     }
 }

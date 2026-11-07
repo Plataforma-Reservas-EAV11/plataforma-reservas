@@ -169,6 +169,12 @@ Endpoint: `POST /api/v1/providers/me/services` (requiere sesión de proveedor y 
 
 `backend/src/main/resources/db/schema.sql` es el esquema local usado por Testcontainers. La migración existente `backend/src/main/resources/db/migraciones/2026-11-02-crear-servicio.sql` crea únicamente `servicio`; no incluye la asociación con recursos ni los nuevos datos/restricciones de reservas. No desplegar esta versión en una base existente hasta preparar y revisar una migración aditiva compatible con sus datos: en particular, las reservas activas históricas no tienen servicio/duración y requieren una decisión de backfill antes de exigirles recurso e intervalo. No se conectó ni modificó Supabase.
 
+### Eliminar un servicio
+
+`DELETE /api/v1/providers/me/services/{servicioId}` requiere sesión de proveedor y token CSRF. Elimina lógicamente un servicio propio sin reservas activas y conserva sus datos y reservas históricas. Un servicio eliminado no aparece en el catálogo ni admite nuevas reservas. Devuelve `200` al eliminar, `404` para servicios ajenos, inexistentes o ya eliminados, y `409` (`SERVICE_HAS_ACTIVE_RESERVATIONS`) si existen reservas activas.
+
+En bases existentes, ejecutar previamente `backend/src/main/resources/db/migraciones/2026-11-06-eliminacion-logica-servicio.sql`, además de aplicar las migraciones de esquema pendientes indicadas arriba.
+
 Esta migración tampoco cambia la cardinalidad de `proveedor.usuario_id`; el endpoint rechaza perfiles duplicados. Antes de decidir una restricción única futura, revisar los duplicados con una consulta de solo lectura:
 ```sql
 SELECT usuario_id, COUNT(*)
@@ -352,7 +358,7 @@ Los errores técnicos (JSON malformado, parámetro con tipo inválido, ruta inex
 
 ```bash
 cd backend
-./mvnw test     # pruebas unitarias (JUnit, Mockito, AssertJ, MockMvc) con el patrón AAA
+./mvnw test     # unitarias y carga del contexto con PostgreSQL en Testcontainers (requiere Docker)
 ./mvnw verify   # unitarias + aceptación (Cucumber) + regla de cobertura de JaCoCo
 ```
 

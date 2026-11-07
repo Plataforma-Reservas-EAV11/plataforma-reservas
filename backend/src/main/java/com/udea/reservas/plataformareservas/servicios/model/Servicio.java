@@ -47,6 +47,9 @@ public class Servicio {
     @Column(name = "duracion_minutos", nullable = false)
     private Integer duracionMinutos;
 
+    @Column(name = "eliminado", nullable = false)
+    private boolean eliminado;
+
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
         name = "servicio_recurso",

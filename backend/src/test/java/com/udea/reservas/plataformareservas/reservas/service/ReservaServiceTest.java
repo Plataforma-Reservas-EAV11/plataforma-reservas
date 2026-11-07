@@ -143,7 +143,7 @@ class ReservaServiceTest {
         when(usuarioRepository.findById(1)).thenReturn(
             Optional.of(crearUsuario(1))
         );
-        when(servicioRepository.findById(9999)).thenReturn(
+        when(servicioRepository.findActivoForUpdate(9999)).thenReturn(
             Optional.empty()
         );
         LocalTime hora = LocalTime.of(10, 30);
@@ -611,7 +611,7 @@ class ReservaServiceTest {
         Servicio servicio = crearServicio();
         Agenda agenda = crearAgenda(true);
         HorarioDisponible horario = crearHorario(agenda, diaSemana);
-        when(servicioRepository.findById(10)).thenReturn(Optional.of(servicio));
+        when(servicioRepository.findActivoForUpdate(10)).thenReturn(Optional.of(servicio));
         Mockito.lenient()
             .when(agendaRepository.findByServicio_Id(10))
             .thenReturn(Optional.of(agenda));

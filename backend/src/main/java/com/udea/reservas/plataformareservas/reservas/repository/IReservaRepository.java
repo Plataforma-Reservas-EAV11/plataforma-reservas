@@ -13,6 +13,8 @@ import org.springframework.data.repository.query.Param;
 @NoRepositoryBean
 public interface IReservaRepository extends JpaRepository<Reserva, Integer> {
 
+    boolean existsByServicio_IdAndEstadoIgnoreCase(Integer servicioId, String estado);
+
     @Query("""
         select count(r) > 0
         from Reserva r

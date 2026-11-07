@@ -15,11 +15,13 @@ import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
 import com.udea.reservas.plataformareservas.proveedores.repository.IProveedorRepository;
 import com.udea.reservas.plataformareservas.recursos.model.Recurso;
 import com.udea.reservas.plataformareservas.recursos.repository.RecursoRepository;
+import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
 import com.udea.reservas.plataformareservas.servicios.dto.CrearServicioRequest;
 import com.udea.reservas.plataformareservas.servicios.dto.ServicioResponse;
 import com.udea.reservas.plataformareservas.servicios.model.Servicio;
 import com.udea.reservas.plataformareservas.servicios.repository.IServicioRepository;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,6 +45,9 @@ class ServicioServiceImplTest {
 
     @Mock
     private RecursoRepository recursoRepository;
+
+    @Mock
+    private IReservaRepository reservaRepository;
 
     @InjectMocks
     private ServicioServiceImpl servicioService;
@@ -214,5 +219,48 @@ class ServicioServiceImplTest {
 
         verify(servicioRepository, never()).save(any(Servicio.class));
         verify(agendaRepository, never()).save(any(Agenda.class));
+    }
+
+    @Test
+    void eliminarServicioConservaLaEntidadCuandoNoHayReservasActivas() {
+        Proveedor proveedor = Proveedor.builder().id(12).build();
+        Servicio servicio = Servicio.builder().id(41).proveedor(proveedor).build();
+        when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
+        when(servicioRepository.findActivoForUpdate(41)).thenReturn(Optional.of(servicio));
+        when(reservaRepository.existsByServicio_IdAndEstadoIgnoreCase(41, "activa")).thenReturn(false);
+
+        servicioService.eliminarServicio(7, 41);
+
+        assertThat(servicio.isEliminado()).isTrue();
+        verify(servicioRepository).save(servicio);
+    }
+
+    @Test
+    void eliminarServicioConReservasActivasNoLoModifica() {
+        Proveedor proveedor = Proveedor.builder().id(12).build();
+        Servicio servicio = Servicio.builder().id(41).proveedor(proveedor).build();
+        when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
+        when(servicioRepository.findActivoForUpdate(41)).thenReturn(Optional.of(servicio));
+        when(reservaRepository.existsByServicio_IdAndEstadoIgnoreCase(41, "activa")).thenReturn(true);
+
+        assertThatThrownBy(() -> servicioService.eliminarServicio(7, 41))
+            .isInstanceOf(BusinessRuleException.class)
+            .extracting("errorCode").isEqualTo("SERVICE_HAS_ACTIVE_RESERVATIONS");
+        assertThat(servicio.isEliminado()).isFalse();
+        verify(servicioRepository, never()).save(any(Servicio.class));
+    }
+
+    @Test
+    void eliminarServicioAjenoNoConsultaReservasNiLoModifica() {
+        Proveedor proveedor = Proveedor.builder().id(12).build();
+        Servicio servicio = Servicio.builder().id(41).proveedor(Proveedor.builder().id(13).build()).build();
+        when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
+        when(servicioRepository.findActivoForUpdate(41)).thenReturn(Optional.of(servicio));
+
+        assertThatThrownBy(() -> servicioService.eliminarServicio(7, 41))
+            .isInstanceOf(BusinessRuleException.class)
+            .extracting("errorCode").isEqualTo("SERVICE_NOT_FOUND");
+        verify(reservaRepository, never()).existsByServicio_IdAndEstadoIgnoreCase(any(), any());
+        verify(servicioRepository, never()).save(any(Servicio.class));
     }
 }
