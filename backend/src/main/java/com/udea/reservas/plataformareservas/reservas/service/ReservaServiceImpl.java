@@ -2,6 +2,7 @@ package com.udea.reservas.plataformareservas.reservas.service;
 
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
+import com.udea.reservas.plataformareservas.reservas.dto.ActiveReservationResponse;
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
@@ -11,6 +12,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -46,6 +48,31 @@ public class ReservaServiceImpl implements ReservaService {
     private final IHorarioDisponibleRepository horarioDisponibleRepository;
 
     private final Clock clock;
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ActiveReservationResponse> getActiveReservations(Integer userId) {
+        return reservaRepository
+            .findAllByUsuario_IdAndEstadoIgnoreCaseOrderByFechaAscHoraAsc(
+                userId,
+                ESTADO_ACTIVA
+            )
+            .stream()
+            .filter(reserva ->
+                reserva != null &&
+                reserva.getEstado() != null &&
+                ESTADO_ACTIVA.equalsIgnoreCase(reserva.getEstado())
+            )
+            .map(reserva -> new ActiveReservationResponse(
+                reserva.getId(),
+                null,
+                reserva.getFecha(),
+                reserva.getHora(),
+                null,
+                reserva.getEstado()
+            ))
+            .toList();
+    }
 
     @Override
     @Transactional

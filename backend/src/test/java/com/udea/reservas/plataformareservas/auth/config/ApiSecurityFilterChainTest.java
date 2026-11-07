@@ -20,6 +20,7 @@ import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
 import com.udea.reservas.plataformareservas.auth.service.UserService;
 import com.udea.reservas.plataformareservas.proveedores.controller.ProviderController;
 import com.udea.reservas.plataformareservas.proveedores.service.ProviderRegistrationService;
+import com.udea.reservas.plataformareservas.reservas.controller.ActiveReservationController;
 import com.udea.reservas.plataformareservas.reservas.controller.ReservaController;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.service.ReservaService;
@@ -55,6 +56,7 @@ import tools.jackson.databind.ObjectMapper;
 @WebMvcTest({
     UserController.class,
     ProviderController.class,
+    ActiveReservationController.class,
     ReservaController.class,
     HorarioDisponibleController.class,
     ServicioController.class,
@@ -120,6 +122,34 @@ class ApiSecurityFilterChainTest {
             .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"));
 
         verify(reservaService, never()).cancelarReserva(any(), any());
+    }
+
+    @Test
+    @DisplayName("Consultar reservas activas sin sesión responde 401")
+    void consultarReservasActivasSinSesionResponde401() throws Exception {
+        mockMvc.perform(get("/api/v1/reservations/me/active"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"));
+
+        verify(reservaService, never()).getActiveReservations(any());
+    }
+
+    @Test
+    @DisplayName("Consultar reservas activas utiliza la identidad de sesión, no un userId enviado")
+    void consultarReservasActivasUsaUsuarioDeSesion() throws Exception {
+        MockHttpSession session = sesionAutenticada(7);
+        when(reservaService.getActiveReservations(7)).thenReturn(java.util.List.of());
+
+        mockMvc.perform(
+            get("/api/v1/reservations/me/active")
+                .session(session)
+                .queryParam("userId", "99")
+        )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isEmpty());
+
+        verify(reservaService).getActiveReservations(7);
+        verify(reservaService, never()).getActiveReservations(99);
     }
 
     @Test
