@@ -4,6 +4,8 @@ import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -51,4 +53,12 @@ public interface IReservaRepository extends JpaRepository<Reserva, Integer> {
         LocalDate fechaFin,
         String estado
     );
+
+    // Para el listado general del historial (Escenarios 1, 2 y 3)
+    @EntityGraph(attributePaths = {"servicio"})
+    List<Reserva> findAllByUsuario_IdOrderByFechaDescHoraDesc(Integer usuarioId);
+
+    // Para consultar el detalle de una reserva validando el propietario (Escenario 4)
+    @EntityGraph(attributePaths = {"servicio", "usuario", "recurso"})
+    Optional<Reserva> findByIdAndUsuario_Id(Integer id, Integer usuarioId);
 }

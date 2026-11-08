@@ -5,6 +5,8 @@ import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
 import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
 import com.udea.reservas.plataformareservas.reservas.dto.ActiveReservationResponse;
+import com.udea.reservas.plataformareservas.reservas.dto.ReservaDetalleResponse;
+import com.udea.reservas.plataformareservas.reservas.dto.ReservaHistorialResponse;
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
@@ -275,5 +277,20 @@ public class ReservaServiceImpl implements ReservaService {
             actual = actual.getCause();
         }
         return false;
+    }
+    @Override
+    public List<ReservaHistorialResponse> obtenerHistorialUsuario(Integer usuarioId) {
+        List<Reserva> reservas = reservaRepository.findAllByUsuario_IdOrderByFechaDescHoraDesc(usuarioId);
+        // Si no hay reservas, retorna una lista vacía (Escenario 3)
+        return reservas.stream()
+                .map(ReservaHistorialResponse::fromEntity)
+                .toList();
+    }
+
+    @Override
+    public ReservaDetalleResponse obtenerDetalleReserva(Integer reservaId, Integer usuarioId) {
+        Reserva reserva = reservaRepository.findByIdAndUsuario_Id(reservaId, usuarioId)
+                .orElseThrow(() -> new ReservaException("Reserva no encontrada o no pertenece al usuario.", HttpStatus.NOT_FOUND));
+        return ReservaDetalleResponse.fromEntity(reserva);
     }
 }
