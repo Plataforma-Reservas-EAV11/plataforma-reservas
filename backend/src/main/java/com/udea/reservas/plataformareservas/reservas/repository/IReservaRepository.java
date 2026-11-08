@@ -54,11 +54,9 @@ public interface IReservaRepository extends JpaRepository<Reserva, Integer> {
         String estado
     );
 
-    // Para el listado general del historial (Escenarios 1, 2 y 3)
     @EntityGraph(attributePaths = {"servicio"})
     List<Reserva> findAllByUsuario_IdOrderByFechaDescHoraDesc(Integer usuarioId);
 
-    // Para consultar el detalle de una reserva validando el propietario (Escenario 4)
     @EntityGraph(attributePaths = {"servicio", "usuario", "recurso"})
     Optional<Reserva> findByIdAndUsuario_Id(Integer id, Integer usuarioId);
 }

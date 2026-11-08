@@ -1,13 +1,14 @@
 package com.udea.reservas.plataformareservas.reservas.controller;
 
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.udea.reservas.plataformareservas.TestAuthentication;
 import com.udea.reservas.plataformareservas.common.exception.GlobalExceptionHandler;
+import com.udea.reservas.plataformareservas.reservas.dto.ReservaDetalleResponse;
 import com.udea.reservas.plataformareservas.reservas.service.ReservaService;
 import java.util.Collections;
 import org.junit.jupiter.api.AfterEach;
@@ -54,7 +55,6 @@ class ReservaHistorialControllerTest {
     @Test
     @DisplayName("Obtener historial de reservas del usuario autenticado retorna 200 OK")
     void obtenerHistorialExitoso() throws Exception {
-        // NOTA: Reemplaza 'obtenerHistorial' por el nombre exacto de tu método en ReservaService
         when(reservaService.obtenerHistorialUsuario(anyInt()))
                 .thenReturn(Collections.emptyList());
 
@@ -66,9 +66,8 @@ class ReservaHistorialControllerTest {
     @DisplayName("Obtener detalle de una reserva por ID retorna 200 OK")
     void obtenerDetalleExitoso() throws Exception {
         int reservaId = 1;
-
-        // NOTA: Reemplaza 'obtenerDetalle' por el nombre exacto de tu método en ReservaService
-        // when(reservaService.obtenerDetalle(reservaId)).thenReturn(...);
+        ReservaDetalleResponse responseMock = org.mockito.Mockito.mock(ReservaDetalleResponse.class);
+        when(reservaService.obtenerDetalleReserva(eq(reservaId), anyInt())).thenReturn(responseMock);
 
         mockMvc.perform(get("/api/reservas/{id}/detalle", reservaId))
                 .andExpect(status().isOk());
