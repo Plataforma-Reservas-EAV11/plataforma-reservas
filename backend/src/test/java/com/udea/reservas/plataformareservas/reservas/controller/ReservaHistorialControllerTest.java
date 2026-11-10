@@ -2,6 +2,7 @@ package com.udea.reservas.plataformareservas.reservas.controller;
 
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -66,7 +67,7 @@ class ReservaHistorialControllerTest {
     @DisplayName("Obtener detalle de una reserva por ID retorna 200 OK")
     void obtenerDetalleExitoso() throws Exception {
         int reservaId = 1;
-        ReservaDetalleResponse responseMock = org.mockito.Mockito.mock(ReservaDetalleResponse.class);
+        ReservaDetalleResponse responseMock = mock(ReservaDetalleResponse.class);
         when(reservaService.obtenerDetalleReserva(eq(reservaId), anyInt())).thenReturn(responseMock);
 
         mockMvc.perform(get("/api/reservas/{id}/detalle", reservaId))
