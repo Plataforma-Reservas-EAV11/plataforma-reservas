@@ -607,6 +607,70 @@ class ReservaServiceTest {
         verify(reservaRepository, never()).save(any());
     }
 
+    @Test
+    @DisplayName("Obtener historial retorna la lista de reservas del usuario")
+    void obtenerHistorialExitoso() {
+        // Arrange
+        int usuarioId = 1;
+        Reserva reserva1 = crearReserva(100, usuarioId, "activa");
+        Reserva reserva2 = crearReserva(101, usuarioId, "completada");
+
+        when(reservaRepository.findAllByUsuario_IdOrderByFechaDescHoraDesc(usuarioId))
+                .thenReturn(List.of(reserva1, reserva2));
+
+        var resultado = reservaServiceImpl.obtenerHistorialUsuario(usuarioId);
+
+        assertNotNull(resultado);
+        assertEquals(2, resultado.size());
+        verify(reservaRepository).findAllByUsuario_IdOrderByFechaDescHoraDesc(usuarioId);
+    }
+
+    @Test
+    @DisplayName("Obtener detalle de reserva retorna el DTO/entidad cuando pertenece al usuario")
+    void obtenerDetalleExitoso() {
+        // Arrange
+        int reservaId = 100;
+        int usuarioId = 1;
+        Reserva reserva = crearReserva(reservaId, usuarioId, "activa");
+
+        when(reservaRepository.findByIdAndUsuario_Id(reservaId,usuarioId)).thenReturn(Optional.of(reserva));
+
+        var resultado = reservaServiceImpl.obtenerDetalleReserva(reservaId, usuarioId);
+
+        assertNotNull(resultado);
+        verify(reservaRepository).findByIdAndUsuario_Id(reservaId,usuarioId);
+    }
+
+    @Test
+    @DisplayName("Rechaza obtener detalle de una reserva inexistente")
+    void obtenerDetalleInexistenteDebeFallar() {
+        when(reservaRepository.findByIdAndUsuario_Id(999, 1))
+                .thenReturn(Optional.empty());
+
+        ReservaException exception = assertThrows(ReservaException.class, () ->
+                reservaServiceImpl.obtenerDetalleReserva(999, 1)
+        );
+        assertEquals("Reserva no encontrada o no pertenece al usuario.", exception.getMessage());
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
+
+    @Test
+    @DisplayName("Rechaza obtener detalle de una reserva de otro usuario")
+    void obtenerDetalleDeOtroUsuarioDebeFallar() {
+        int reservaId = 100;
+        int usuarioAjenoId = 2;
+
+        when(reservaRepository.findByIdAndUsuario_Id(reservaId, usuarioAjenoId))
+                .thenReturn(Optional.empty());
+
+        ReservaException exception = assertThrows(ReservaException.class, () ->
+                reservaServiceImpl.obtenerDetalleReserva(reservaId, usuarioAjenoId)
+        );
+
+        assertEquals("Reserva no encontrada o no pertenece al usuario.", exception.getMessage());
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
+
     @ParameterizedTest
     @NullSource
     @ValueSource(ints = {0, -1})
