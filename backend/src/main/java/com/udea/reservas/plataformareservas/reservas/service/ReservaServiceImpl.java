@@ -300,12 +300,11 @@ public class ReservaServiceImpl implements ReservaService {
         }
 
         // 2. Definir los estados válidos (excluyendo canceladas)
-        List<String> estadosValidos = List.of("activa", "completada");
+        List<String> estadosValidos = List.of(ESTADO_ACTIVA, "completada");
 
         // 3. Consultar los datos al repositorio
         long totalReservas = reservaRepository.countReservasEnPeriodo(fechaInicio, fechaFin, estadosValidos);
 
-        // 4. Si no hay reservas, devolver todo en cero (Criterio de Aceptación: Periodo sin reservas)
         if (totalReservas == 0) {
             return new ReporteOcupacionDTO(0L, List.of(), List.of());
         }

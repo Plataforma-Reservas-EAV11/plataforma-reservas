@@ -19,7 +19,7 @@ public class ReporteController {
     private final ReservaService reservaService;
 
     @GetMapping("/ocupacion")
-    public ResponseEntity<?> obtenerReporteOcupacion(
+    public ResponseEntity<Object> obtenerReporteOcupacion(
             @RequestParam("fechaInicio") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaInicio,
             @RequestParam("fechaFin") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaFin) {
 
