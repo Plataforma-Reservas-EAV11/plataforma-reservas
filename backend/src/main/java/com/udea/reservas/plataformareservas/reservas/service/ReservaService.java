@@ -1,6 +1,7 @@
 package com.udea.reservas.plataformareservas.reservas.service;
 
 import com.udea.reservas.plataformareservas.reservas.dto.ActiveReservationResponse;
+import com.udea.reservas.plataformareservas.reservas.dto.ReporteOcupacionDTO;
 import com.udea.reservas.plataformareservas.reservas.dto.ReservaDetalleResponse;
 import com.udea.reservas.plataformareservas.reservas.dto.ReservaHistorialResponse;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
@@ -19,4 +20,6 @@ public interface ReservaService {
     List<ReservaHistorialResponse> obtenerHistorialUsuario(Integer usuarioId);
 
     ReservaDetalleResponse obtenerDetalleReserva(Integer reservaId, Integer usuarioId);
+
+    ReporteOcupacionDTO obtenerReporteOcupacion(LocalDate fechaInicio, LocalDate fechaFin);
 }

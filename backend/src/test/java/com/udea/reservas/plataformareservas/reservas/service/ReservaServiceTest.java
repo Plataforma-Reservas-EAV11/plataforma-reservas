@@ -10,6 +10,9 @@ import com.udea.reservas.plataformareservas.agendas.model.Agenda;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
 import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
+import com.udea.reservas.plataformareservas.reservas.dto.RecursoUsoDTO;
+import com.udea.reservas.plataformareservas.reservas.dto.ReporteOcupacionDTO;
+import com.udea.reservas.plataformareservas.reservas.dto.ServicioOcupacionDTO;
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
@@ -628,7 +631,6 @@ class ReservaServiceTest {
     @Test
     @DisplayName("Obtener detalle de reserva retorna el DTO/entidad cuando pertenece al usuario")
     void obtenerDetalleExitoso() {
-        // Arrange
         int reservaId = 100;
         int usuarioId = 1;
         Reserva reserva = crearReserva(reservaId, usuarioId, "activa");
@@ -669,6 +671,57 @@ class ReservaServiceTest {
 
         assertEquals("Reserva no encontrada o no pertenece al usuario.", exception.getMessage());
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatus());
+    }
+
+    @Test
+    void obtenerReporteOcupacion_RangoInvalido_LanzaExcepcion() {
+        LocalDate fechaInicio = LocalDate.of(2026, 12, 31);
+        LocalDate fechaFin = LocalDate.of(2026, 11, 1); // Fecha fin es menor que inicio
+
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            reservaServiceImpl.obtenerReporteOcupacion(fechaInicio, fechaFin);
+        });
+        assertEquals("El rango de fechas no es válido.", exception.getMessage());
+    }
+
+    @Test
+    void obtenerReporteOcupacion_SinReservas_RetornaReporteVacio() {
+        LocalDate fechaInicio = LocalDate.of(2026, 11, 1);
+        LocalDate fechaFin = LocalDate.of(2026, 11, 30);
+        List<String> estadosValidos = List.of("activa", "completada");
+
+        when(reservaRepository.countReservasEnPeriodo(fechaInicio, fechaFin, estadosValidos)).thenReturn(0L);
+
+        ReporteOcupacionDTO reporte = reservaServiceImpl.obtenerReporteOcupacion(fechaInicio, fechaFin);
+
+        assertEquals(0L, reporte.getTotalReservas());
+        assertTrue(reporte.getOcupacionPorServicio().isEmpty());
+        assertTrue(reporte.getUsoPorRecurso().isEmpty());
+
+        verify(reservaRepository, never()).countOcupacionPorServicioEnPeriodo(any(), any(), any());
+        verify(reservaRepository, never()).countUsoPorRecursoEnPeriodo(any(), any(), any());
+    }
+
+    @Test
+    void obtenerReporteOcupacion_ConReservas_RetornaDatosAgrupados() {
+        LocalDate fechaInicio = LocalDate.of(2026, 11, 1);
+        LocalDate fechaFin = LocalDate.of(2026, 11, 30);
+        List<String> estadosValidos = List.of("activa", "completada");
+
+        List<ServicioOcupacionDTO> ocupacionServicio = List.of(new ServicioOcupacionDTO("Alquiler", 1L));
+        List<RecursoUsoDTO> usoRecurso = List.of(new RecursoUsoDTO("mi negocio", 1L));
+
+        when(reservaRepository.countReservasEnPeriodo(fechaInicio, fechaFin, estadosValidos)).thenReturn(1L);
+        when(reservaRepository.countOcupacionPorServicioEnPeriodo(fechaInicio, fechaFin, estadosValidos)).thenReturn(ocupacionServicio);
+        when(reservaRepository.countUsoPorRecursoEnPeriodo(fechaInicio, fechaFin, estadosValidos)).thenReturn(usoRecurso);
+
+        ReporteOcupacionDTO reporte = reservaServiceImpl.obtenerReporteOcupacion(fechaInicio, fechaFin);
+
+        assertEquals(1L, reporte.getTotalReservas());
+        assertEquals(1, reporte.getOcupacionPorServicio().size());
+        assertEquals("Alquiler", reporte.getOcupacionPorServicio().get(0).getNombreServicio());
+        assertEquals(1, reporte.getUsoPorRecurso().size());
+        assertEquals("mi negocio", reporte.getUsoPorRecurso().get(0).getNombreRecurso());
     }
 
     @ParameterizedTest
