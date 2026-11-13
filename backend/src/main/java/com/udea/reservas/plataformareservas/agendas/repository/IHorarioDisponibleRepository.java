@@ -29,4 +29,6 @@ public interface IHorarioDisponibleRepository
     List<HorarioDisponible> findAllByAgenda_Proveedor_IdAndAgenda_ActivaTrueOrderByIdAsc(
         Integer proveedorId
     );
+
+    List<HorarioDisponible> findAllByAgenda_IdOrderByDiaSemanaAscHoraInicioAsc(Integer agendaId);
 }
