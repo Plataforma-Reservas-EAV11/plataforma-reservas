@@ -17,6 +17,13 @@ public class PasosServicios {
 
     private static final String RUTA_SERVICIOS = "/api/v1/providers/me/services";
 
+    /**
+     * Identificador de relleno para los escenarios que se rechazan antes de validar
+     * los recursos (sin sesión, rol incorrecto, sin token CSRF o sin perfil de
+     * proveedor), donde solo hace falta que el cuerpo pase la validación de campos.
+     */
+    private static final List<Integer> RECURSOS_DE_RELLENO = List.of(1);
+
     private final ClienteApi api;
     private final DatosPrueba datos;
 
@@ -160,7 +167,16 @@ public class PasosServicios {
     public void creoServicio(String nombre, String descripcion, int duracion) {
         api.postJson(
             RUTA_SERVICIOS,
-            Map.of("nombre", nombre, "descripcion", descripcion, "duracion", duracion)
+            Map.of(
+                "nombre",
+                nombre,
+                "descripcion",
+                descripcion,
+                "duracion",
+                duracion,
+                "recursoIds",
+                List.of(recursoId)
+            )
         );
     }
 
@@ -189,7 +205,9 @@ public class PasosServicios {
             "descripcion",
             "Descripción de prueba",
             "duracion",
-            30
+            30,
+            "recursoIds",
+            List.of(recursoId)
         );
         api.postJson(RUTA_SERVICIOS, cuerpo);
         api.postJson(RUTA_SERVICIOS, cuerpo);
@@ -197,7 +215,19 @@ public class PasosServicios {
 
     @Cuando("intento crear un servicio")
     public void intentoCrearServicio() {
-        creoServicio("Servicio de prueba", "Descripción de prueba", 30);
+        api.postJson(
+            RUTA_SERVICIOS,
+            Map.of(
+                "nombre",
+                "Servicio de prueba",
+                "descripcion",
+                "Descripción de prueba",
+                "duracion",
+                30,
+                "recursoIds",
+                RECURSOS_DE_RELLENO
+            )
+        );
     }
 
     @Cuando("intento crear un servicio sin iniciar sesión")
@@ -210,7 +240,16 @@ public class PasosServicios {
     public void intentoCrearServicioSinCsrf() {
         api.postJsonSinCsrf(
             RUTA_SERVICIOS,
-            Map.of("nombre", "Corte", "descripcion", "Descripción", "duracion", 30)
+            Map.of(
+                "nombre",
+                "Corte",
+                "descripcion",
+                "Descripción",
+                "duracion",
+                30,
+                "recursoIds",
+                RECURSOS_DE_RELLENO
+            )
         );
     }
 

@@ -56,7 +56,15 @@ class ServicioServiceImplTest {
     @DisplayName("Crea el servicio para el único perfil del usuario autenticado")
     void crearServicioAsociaElPerfilDelUsuarioAutenticado() {
         Proveedor proveedor = Proveedor.builder().id(12).build();
+        Recurso recurso = Recurso.builder()
+            .id(51)
+            .proveedor(proveedor)
+            .nombre("Sala 1")
+            .activo(true)
+            .build();
         when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
+        when(recursoRepository.findAllByIdInAndProveedor_Id(List.of(51), 12))
+            .thenReturn(List.of(recurso));
         when(servicioRepository.save(any(Servicio.class))).thenAnswer(invocation -> {
             Servicio servicio = invocation.getArgument(0);
             servicio.setId(41);
@@ -70,7 +78,7 @@ class ServicioServiceImplTest {
 
         ServicioResponse response = servicioService.crearServicio(
             7,
-            new CrearServicioRequest("Corte", "Corte de cabello", 30)
+            new CrearServicioRequest("Corte", "Corte de cabello", 30, List.of(51))
         );
 
         ArgumentCaptor<Servicio> captor = ArgumentCaptor.forClass(Servicio.class);
@@ -79,12 +87,13 @@ class ServicioServiceImplTest {
         assertThat(captor.getValue().getNombre()).isEqualTo("Corte");
         assertThat(captor.getValue().getDescripcion()).isEqualTo("Corte de cabello");
         assertThat(captor.getValue().getDuracionMinutos()).isEqualTo(30);
+        assertThat(captor.getValue().getRecursosCompatibles()).containsExactly(recurso);
         ArgumentCaptor<Agenda> agendaCaptor = ArgumentCaptor.forClass(Agenda.class);
         verify(agendaRepository).save(agendaCaptor.capture());
         assertThat(agendaCaptor.getValue().getProveedor()).isSameAs(proveedor);
         assertThat(agendaCaptor.getValue().getServicio()).isSameAs(captor.getValue());
         assertThat(response).isEqualTo(
-            new ServicioResponse(41, 42, "Corte", "Corte de cabello", 30)
+            new ServicioResponse(41, 42, "Corte", "Corte de cabello", 30, List.of(51))
         );
     }
 
@@ -95,7 +104,8 @@ class ServicioServiceImplTest {
         CrearServicioRequest request = new CrearServicioRequest(
             "Corte",
             "Descripción",
-            30
+            30,
+            List.of(51)
         );
 
         assertThatThrownBy(() ->
@@ -121,7 +131,8 @@ class ServicioServiceImplTest {
         CrearServicioRequest request = new CrearServicioRequest(
             "Corte",
             "Descripción",
-            30
+            30,
+            List.of(51)
         );
 
         assertThatThrownBy(() ->
@@ -143,7 +154,15 @@ class ServicioServiceImplTest {
     @DisplayName("Permite crear servicios con nombres duplicados para el mismo proveedor")
     void crearServicioPermiteNombresDuplicados() {
         Proveedor proveedor = Proveedor.builder().id(12).build();
+        Recurso recurso = Recurso.builder()
+            .id(51)
+            .proveedor(proveedor)
+            .nombre("Sala 1")
+            .activo(true)
+            .build();
         when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
+        when(recursoRepository.findAllByIdInAndProveedor_Id(List.of(51), 12))
+            .thenReturn(List.of(recurso));
         when(servicioRepository.save(any(Servicio.class))).thenAnswer(invocation -> {
             Servicio servicio = invocation.getArgument(0);
             servicio.setId(41);
@@ -154,7 +173,8 @@ class ServicioServiceImplTest {
             agenda.setId(42);
             return agenda;
         });
-        CrearServicioRequest request = new CrearServicioRequest("Corte", "Descripción", 30);
+        CrearServicioRequest request =
+            new CrearServicioRequest("Corte", "Descripción", 30, List.of(51));
 
         servicioService.crearServicio(7, request);
         servicioService.crearServicio(7, request);
@@ -274,6 +294,51 @@ class ServicioServiceImplTest {
                 var error = (BusinessRuleException) exception;
                 assertThat(error.getErrorCode()).isEqualTo("INVALID_SERVICE_RESOURCES");
                 assertThat(error.getMessage()).isEqualTo("La lista de recursos contiene identificadores duplicados.");
+                assertThat(error.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
+        verify(servicioRepository, never()).save(any(Servicio.class));
+        verify(agendaRepository, never()).save(any(Agenda.class));
+    }
+
+    @Test
+    void servicioSinRecursosEsRechazadoAntesDeEscribir() {
+        when(proveedorRepository.findAllByUsuario_Id(7))
+            .thenReturn(List.of(Proveedor.builder().id(12).build()));
+        CrearServicioRequest request =
+            new CrearServicioRequest("Consulta", "Consulta general", 30, List.of());
+
+        assertThatThrownBy(() -> servicioService.crearServicio(7, request))
+            .isInstanceOf(BusinessRuleException.class)
+            .satisfies(exception -> {
+                var error = (BusinessRuleException) exception;
+                assertThat(error.getErrorCode()).isEqualTo("RESOURCE_REQUIRED");
+                assertThat(error.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
+            });
+        verify(servicioRepository, never()).save(any(Servicio.class));
+        verify(agendaRepository, never()).save(any(Agenda.class));
+    }
+
+    @Test
+    void servicioConTodosLosRecursosInactivosEsRechazado() {
+        Proveedor proveedor = Proveedor.builder().id(12).build();
+        Recurso recurso = Recurso.builder()
+            .id(51)
+            .proveedor(proveedor)
+            .nombre("Sala 1")
+            .activo(false)
+            .build();
+        when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
+        when(recursoRepository.findAllByIdInAndProveedor_Id(List.of(51), 12))
+            .thenReturn(List.of(recurso));
+        CrearServicioRequest request =
+            new CrearServicioRequest("Consulta", "Consulta general", 30, List.of(51));
+
+        assertThatThrownBy(() -> servicioService.crearServicio(7, request))
+            .isInstanceOf(BusinessRuleException.class)
+            .satisfies(exception -> {
+                var error = (BusinessRuleException) exception;
+                assertThat(error.getErrorCode()).isEqualTo("INVALID_SERVICE_RESOURCES");
+                assertThat(error.getMessage()).isEqualTo("El servicio necesita al menos un recurso activo.");
                 assertThat(error.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
             });
         verify(servicioRepository, never()).save(any(Servicio.class));

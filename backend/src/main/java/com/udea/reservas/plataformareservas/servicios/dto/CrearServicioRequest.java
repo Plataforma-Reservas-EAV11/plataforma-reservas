@@ -1,10 +1,8 @@
 package com.udea.reservas.plataformareservas.servicios.dto;
 
 import com.udea.reservas.plataformareservas.servicios.dto.validation.StrictIntegerDeserializer;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
+
 import java.util.List;
 import tools.jackson.databind.annotation.JsonDeserialize;
 
@@ -22,12 +20,9 @@ public record CrearServicioRequest(
     @JsonDeserialize(using = StrictIntegerDeserializer.class)
     Integer duracion,
 
+    @NotEmpty(message = "Debes asociar al menos un recurso al servicio.")
     List<@NotNull @Positive Integer> recursoIds
 ) {
-
-    public CrearServicioRequest(String nombre, String descripcion, Integer duracion) {
-        this(nombre, descripcion, duracion, List.of());
-    }
 
     public CrearServicioRequest {
         if (recursoIds == null) {

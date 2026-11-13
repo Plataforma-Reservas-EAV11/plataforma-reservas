@@ -18,6 +18,7 @@ import com.udea.reservas.plataformareservas.common.exception.ProviderApiExceptio
 import com.udea.reservas.plataformareservas.servicios.dto.CrearServicioRequest;
 import com.udea.reservas.plataformareservas.servicios.dto.ServicioResponse;
 import com.udea.reservas.plataformareservas.servicios.service.ServicioService;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -63,7 +64,8 @@ class ServicioControllerTest {
         CrearServicioRequest request = new CrearServicioRequest(
             "Corte",
             "Corte de cabello",
-            30
+            30,
+            List.of(51)
         );
         when(servicioService.crearServicio(7, request)).thenReturn(
             new ServicioResponse(41, 42, "Corte", "Corte de cabello", 30)
@@ -82,6 +84,24 @@ class ServicioControllerTest {
             .andExpect(jsonPath("$.data.proveedorId").doesNotExist());
 
         verify(servicioService).crearServicio(7, request);
+    }
+
+    @Test
+    @DisplayName("Rechaza un servicio sin recursos")
+    void crearServicioSinRecursosEsInvalido() throws Exception {
+        mockMvc.perform(
+            post(RUTA)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    "{\"nombre\":\"Corte\",\"descripcion\":\"Corte de cabello\"," +
+                    "\"duracion\":30,\"recursoIds\":[]}"
+                )
+        )
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+            .andExpect(jsonPath("$.details").isArray());
+
+        verify(servicioService, never()).crearServicio(any(Integer.class), any());
     }
 
     @Test
@@ -151,7 +171,8 @@ class ServicioControllerTest {
         CrearServicioRequest request = new CrearServicioRequest(
             nombre,
             descripcion,
-            Integer.MAX_VALUE
+            Integer.MAX_VALUE,
+            List.of(51)
         );
         when(servicioService.crearServicio(7, request)).thenReturn(
             new ServicioResponse(41, 42, nombre, descripcion, Integer.MAX_VALUE)
@@ -184,7 +205,7 @@ class ServicioControllerTest {
         mockMvc.perform(
             post(RUTA)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"nombre\":\"Corte\",\"descripcion\":\"Descripción\",\"duracion\":30}")
+                .content("{\"nombre\":\"Corte\",\"descripcion\":\"Descripción\",\"duracion\":30,\"recursoIds\":[51]}")
         )
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.errorCode").value("PROVIDER_PROFILE_NOT_FOUND"));
@@ -214,7 +235,7 @@ class ServicioControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     objectMapper.writeValueAsString(
-                        new CrearServicioRequest(nombre, descripcion, 30)
+                        new CrearServicioRequest(nombre, descripcion, 30, List.of(51))
                     )
                 )
         )
