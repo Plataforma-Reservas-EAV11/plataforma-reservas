@@ -1,5 +1,7 @@
 package com.udea.reservas.plataformareservas.reservas.repository;
 
+import com.udea.reservas.plataformareservas.reservas.dto.RecursoUsoDTO;
+import com.udea.reservas.plataformareservas.reservas.dto.ServicioOcupacionDTO;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -59,4 +61,31 @@ public interface IReservaRepository extends JpaRepository<Reserva, Integer> {
 
     @EntityGraph(attributePaths = {"servicio", "usuario", "recurso"})
     Optional<Reserva> findByIdAndUsuario_Id(Integer id, Integer usuarioId);
+
+    @Query("SELECT COUNT(r) FROM Reserva r WHERE r.fecha BETWEEN :fechaInicio AND :fechaFin AND r.estado IN :estadosValidos")
+    Long countReservasEnPeriodo(
+            @Param("fechaInicio") LocalDate fechaInicio,
+            @Param("fechaFin") LocalDate fechaFin,
+            @Param("estadosValidos") List<String> estadosValidos
+    );
+
+    @Query("SELECT new com.udea.reservas.plataformareservas.reservas.dto.ServicioOcupacionDTO(s.nombre, COUNT(r)) " +
+            "FROM Reserva r JOIN r.servicio s " +
+            "WHERE r.fecha BETWEEN :fechaInicio AND :fechaFin AND r.estado IN :estadosValidos " +
+            "GROUP BY s.nombre")
+    List<ServicioOcupacionDTO> countOcupacionPorServicioEnPeriodo(
+            @Param("fechaInicio") LocalDate fechaInicio,
+            @Param("fechaFin") LocalDate fechaFin,
+            @Param("estadosValidos") List<String> estadosValidos
+    );
+
+    @Query("SELECT new com.udea.reservas.plataformareservas.reservas.dto.RecursoUsoDTO(rec.nombre, COUNT(r)) " +
+            "FROM Reserva r JOIN r.recurso rec " +
+            "WHERE r.fecha BETWEEN :fechaInicio AND :fechaFin AND r.estado IN :estadosValidos " +
+            "GROUP BY rec.nombre")
+    List<RecursoUsoDTO> countUsoPorRecursoEnPeriodo(
+            @Param("fechaInicio") LocalDate fechaInicio,
+            @Param("fechaFin") LocalDate fechaFin,
+            @Param("estadosValidos") List<String> estadosValidos
+    );
 }

@@ -4,9 +4,7 @@ import com.udea.reservas.plataformareservas.agendas.model.Agenda;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
 import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
-import com.udea.reservas.plataformareservas.reservas.dto.ActiveReservationResponse;
-import com.udea.reservas.plataformareservas.reservas.dto.ReservaDetalleResponse;
-import com.udea.reservas.plataformareservas.reservas.dto.ReservaHistorialResponse;
+import com.udea.reservas.plataformareservas.reservas.dto.*;
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
@@ -292,5 +290,29 @@ public class ReservaServiceImpl implements ReservaService {
         Reserva reserva = reservaRepository.findByIdAndUsuario_Id(reservaId, usuarioId)
                 .orElseThrow(() -> new ReservaException("Reserva no encontrada o no pertenece al usuario.", HttpStatus.NOT_FOUND));
         return ReservaDetalleResponse.fromEntity(reserva);
+    }
+    @Override
+    public ReporteOcupacionDTO obtenerReporteOcupacion(LocalDate fechaInicio, LocalDate fechaFin) {
+        // 1. Validar el rango de fechas (Criterio de Aceptación: Rango de fechas inválido)
+        if (fechaInicio.isAfter(fechaFin)) {
+            // Ajusta esta excepción según el manejo de errores de tu proyecto
+            throw new IllegalArgumentException("El rango de fechas no es válido.");
+        }
+
+        // 2. Definir los estados válidos (excluyendo canceladas)
+        List<String> estadosValidos = List.of(ESTADO_ACTIVA, "completada");
+
+        // 3. Consultar los datos al repositorio
+        long totalReservas = reservaRepository.countReservasEnPeriodo(fechaInicio, fechaFin, estadosValidos);
+
+        if (totalReservas == 0) {
+            return new ReporteOcupacionDTO(0L, List.of(), List.of());
+        }
+
+        List<ServicioOcupacionDTO> ocupacionPorServicio = reservaRepository.countOcupacionPorServicioEnPeriodo(fechaInicio, fechaFin, estadosValidos);
+        List<RecursoUsoDTO> usoPorRecurso = reservaRepository.countUsoPorRecursoEnPeriodo(fechaInicio, fechaFin, estadosValidos);
+
+        // 5. Ensamblar y retornar el DTO principal
+        return new ReporteOcupacionDTO(totalReservas, ocupacionPorServicio, usoPorRecurso);
     }
 }
