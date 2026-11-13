@@ -1,8 +1,10 @@
 package com.udea.reservas.plataformareservas.servicios.service;
 
-import com.udea.reservas.plataformareservas.common.BusinessRuleException;
+import com.udea.reservas.plataformareservas.agendas.model.Agenda;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
+import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
+import com.udea.reservas.plataformareservas.common.BusinessRuleException;
 import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
 import com.udea.reservas.plataformareservas.proveedores.repository.IProveedorRepository;
 import com.udea.reservas.plataformareservas.recursos.model.Recurso;
@@ -41,6 +43,7 @@ public class ServiceCatalogService {
     private final IServicioRepository serviceRepository;
     private final IHorarioDisponibleRepository scheduleRepository;
     private final IReservaRepository reservationRepository;
+    private final IAgendaRepository agendaRepository;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -85,8 +88,17 @@ public class ServiceCatalogService {
 
         return serviceRepository.findAllByProveedor_IdOrderByNombreAscIdAsc(providerId)
             .stream()
-            .map(ServiceCatalogService::toProviderService)
+            .map(service -> toProviderService(service, agendaIdFor(service)))
             .toList();
+    }
+
+    private Integer agendaIdFor(Servicio service) {
+        if (service == null || service.getId() == null) {
+            return null;
+        }
+        return agendaRepository.findByServicio_Id(service.getId())
+            .map(Agenda::getId)
+            .orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -267,7 +279,7 @@ public class ServiceCatalogService {
         return new ProviderSummaryResponse(provider.getId(), provider.getNombreNegocio());
     }
 
-    private static ProviderServiceResponse toProviderService(Servicio service) {
+    private static ProviderServiceResponse toProviderService(Servicio service, Integer agendaId) {
         if (
             service == null ||
             service.getId() == null ||
@@ -284,7 +296,8 @@ public class ServiceCatalogService {
             service.getId(),
             service.getNombre(),
             service.getDuracionMinutos(),
-            service.getProveedor().getNombreNegocio()
+            service.getProveedor().getNombreNegocio(),
+            agendaId
         );
     }
 

@@ -48,7 +48,7 @@ class ServiceCatalogControllerTest {
     @DisplayName("Devuelve servicios del proveedor en el contrato JSON del API")
     void listProviderServicesReturnsJsonResponse() throws Exception {
         when(catalogService.getProviderServices(8)).thenReturn(
-            List.of(new ProviderServiceResponse(12, "Corte", 30, "Salón Central"))
+            List.of(new ProviderServiceResponse(12, "Corte", 30, "Salón Central", 77))
         );
 
         mockMvc.perform(get("/api/v1/providers/8/services"))
@@ -57,7 +57,8 @@ class ServiceCatalogControllerTest {
             .andExpect(jsonPath("$.data[0].id").value(12))
             .andExpect(jsonPath("$.data[0].nombre").value("Corte"))
             .andExpect(jsonPath("$.data[0].duracionMinutos").value(30))
-            .andExpect(jsonPath("$.data[0].proveedorNombre").value("Salón Central"));
+            .andExpect(jsonPath("$.data[0].proveedorNombre").value("Salón Central"))
+            .andExpect(jsonPath("$.data[0].agendaId").value(77));
 
         verify(catalogService).getProviderServices(8);
     }
