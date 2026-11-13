@@ -1,5 +1,6 @@
 package com.udea.reservas.plataformareservas.proveedores.controller;
 
+import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
 import com.udea.reservas.plataformareservas.common.ApiSuccessResponse;
 import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistrationRequest;
 import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistrationResponse;
@@ -10,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -47,6 +49,18 @@ public class ProviderController {
         ProviderRegistrationResponse response = registrationService.register(request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiSuccessResponse<>(SUCCESS_MESSAGE, response));
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<ApiSuccessResponse<ProviderRegistrationResponse>> getAuthenticatedProvider(
+            @AuthenticationPrincipal UserPrincipal user
+            ){
+        return ResponseEntity.ok(
+                new ApiSuccessResponse<>(
+                        "Proveedor consultado correctamente.",
+                        registrationService.getByUserId(user.getId())
+                )
+        );
     }
 
 }

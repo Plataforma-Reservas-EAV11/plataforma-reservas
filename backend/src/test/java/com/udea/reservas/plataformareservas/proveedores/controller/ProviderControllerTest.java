@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.udea.reservas.plataformareservas.TestAuthentication;
+import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
 import com.udea.reservas.plataformareservas.common.BusinessRuleException;
 import com.udea.reservas.plataformareservas.common.exception.GlobalExceptionHandler;
 import com.udea.reservas.plataformareservas.common.exception.ProviderApiExceptionHandler;
@@ -19,6 +21,7 @@ import com.udea.reservas.plataformareservas.proveedores.service.ProviderRegistra
 import com.udea.reservas.plataformareservas.servicios.dto.ProviderPageResponse;
 import com.udea.reservas.plataformareservas.servicios.dto.ProviderSummaryResponse;
 import com.udea.reservas.plataformareservas.servicios.service.ServiceCatalogService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -28,6 +31,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.ObjectMapper;
@@ -52,8 +56,17 @@ class ProviderControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(providerController)
             .setControllerAdvice(new ProviderApiExceptionHandler(new GlobalExceptionHandler()), new GlobalExceptionHandler())
+            .setCustomArgumentResolvers(TestAuthentication.argumentResolver())
             .build();
         objectMapper = new ObjectMapper();
+        TestAuthentication.authenticateAs(
+            new UserPrincipal(7, "Ana", "ana@example.com", "proveedor", "hash", true)
+        );
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -281,6 +294,85 @@ class ProviderControllerTest {
             .andExpect(jsonPath("$.details[0]").value("password es demasiado larga"));
 
         verify(registrationService, never()).register(any(ProviderRegistrationRequest.class));
+    }
+
+    @Test
+    @DisplayName("Consulta el perfil del proveedor autenticado")
+    void getAuthenticatedProviderReturnsProfile() throws Exception {
+        // Arrange
+        ProviderRegistrationResponse response = new ProviderRegistrationResponse(
+            47,
+            7,
+            "Ana",
+            "ana@example.com",
+            "MiNegocio",
+            "3001234567"
+        );
+        when(registrationService.getByUserId(7)).thenReturn(response);
+
+        // Act and Assert
+        mockMvc.perform(get("/api/v1/providers/me"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Proveedor consultado correctamente."))
+            .andExpect(jsonPath("$.data.providerId").value(47))
+            .andExpect(jsonPath("$.data.userId").value(7))
+            .andExpect(jsonPath("$.data.name").value("Ana"))
+            .andExpect(jsonPath("$.data.email").value("ana@example.com"))
+            .andExpect(jsonPath("$.data.businessName").value("MiNegocio"))
+            .andExpect(jsonPath("$.data.phone").value("3001234567"))
+            .andExpect(jsonPath("$.data.password").doesNotExist())
+            .andExpect(jsonPath("$.data.passwordHash").doesNotExist());
+
+        verify(registrationService).getByUserId(7);
+    }
+
+    @Test
+    @DisplayName("El perfil se consulta con la identidad de la sesión, no con un userId enviado")
+    void getAuthenticatedProviderUsesSessionIdentity() throws Exception {
+        // Arrange
+        when(registrationService.getByUserId(7)).thenReturn(
+            new ProviderRegistrationResponse(
+                47,
+                7,
+                "Ana",
+                "ana@example.com",
+                "MiNegocio",
+                "3001234567"
+            )
+        );
+
+        // Act and Assert
+        mockMvc.perform(get("/api/v1/providers/me").queryParam("userId", "99"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.userId").value(7));
+
+        verify(registrationService).getByUserId(7);
+        verify(registrationService, never()).getByUserId(99);
+    }
+
+    @Test
+    @DisplayName("Devuelve 404 cuando el usuario autenticado no tiene perfil de proveedor")
+    void getAuthenticatedProviderReturnsNotFoundWhenProfileIsMissing() throws Exception {
+        // Arrange
+        when(registrationService.getByUserId(7)).thenThrow(
+            new BusinessRuleException(
+                "PROVIDER_NOT_FOUND",
+                "El usuario autenticado no tiene un negocio registrado.",
+                HttpStatus.NOT_FOUND.value()
+            )
+        );
+
+        // Act and Assert
+        mockMvc.perform(get("/api/v1/providers/me"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.errorCode").value("PROVIDER_NOT_FOUND"))
+            .andExpect(
+                jsonPath("$.message")
+                    .value("El usuario autenticado no tiene un negocio registrado.")
+            )
+            .andExpect(jsonPath("$.traceId").isNotEmpty());
+
+        verify(registrationService).getByUserId(7);
     }
 
     private ProviderRegistrationRequest validRequest() {

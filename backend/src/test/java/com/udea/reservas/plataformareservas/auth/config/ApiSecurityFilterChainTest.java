@@ -19,6 +19,7 @@ import com.udea.reservas.plataformareservas.auth.controller.UserController;
 import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
 import com.udea.reservas.plataformareservas.auth.service.UserService;
 import com.udea.reservas.plataformareservas.proveedores.controller.ProviderController;
+import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistrationResponse;
 import com.udea.reservas.plataformareservas.proveedores.service.ProviderRegistrationService;
 import com.udea.reservas.plataformareservas.reservas.controller.ActiveReservationController;
 import com.udea.reservas.plataformareservas.reservas.controller.ReservaController;
@@ -318,6 +319,56 @@ class ApiSecurityFilterChainTest {
         mockMvc.perform(get("/api/v1/services/1/availability").session(session))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    @DisplayName("Consultar el perfil de proveedor sin sesión responde 401")
+    void consultarPerfilProveedorSinSesionResponde401() throws Exception {
+        mockMvc.perform(get("/api/v1/providers/me"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"));
+
+        verify(providerRegistrationService, never()).getByUserId(any());
+    }
+
+    @Test
+    @DisplayName("Un usuario cliente no puede consultar el perfil de proveedor")
+    void clienteNoPuedeConsultarPerfilProveedor() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "usuario");
+
+        mockMvc.perform(get("/api/v1/providers/me").session(session))
+            .andExpect(status().isForbidden());
+
+        verify(providerRegistrationService, never()).getByUserId(any());
+    }
+
+    @Test
+    @DisplayName("Un proveedor consulta su perfil con la identidad de la sesión")
+    void proveedorConsultaPerfilConIdentidadDeSesion() throws Exception {
+        MockHttpSession session = sesionAutenticada(7, "proveedor");
+        when(providerRegistrationService.getByUserId(7)).thenReturn(
+            new ProviderRegistrationResponse(
+                47,
+                7,
+                "Ana",
+                "ana@example.com",
+                "MiNegocio",
+                "3001234567"
+            )
+        );
+
+        mockMvc.perform(
+            get("/api/v1/providers/me")
+                .session(session)
+                .queryParam("userId", "99")
+        )
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Proveedor consultado correctamente."))
+            .andExpect(jsonPath("$.data.providerId").value(47))
+            .andExpect(jsonPath("$.data.businessName").value("MiNegocio"));
+
+        verify(providerRegistrationService).getByUserId(7);
+        verify(providerRegistrationService, never()).getByUserId(99);
     }
 
     @Test
