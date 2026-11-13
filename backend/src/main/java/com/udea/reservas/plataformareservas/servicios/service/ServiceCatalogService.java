@@ -1,9 +1,10 @@
 package com.udea.reservas.plataformareservas.servicios.service;
 
-import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
-import com.udea.reservas.plataformareservas.common.BusinessRuleException;
+import com.udea.reservas.plataformareservas.agendas.model.Agenda;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
+import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
+import com.udea.reservas.plataformareservas.common.BusinessRuleException;
 import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
 import com.udea.reservas.plataformareservas.proveedores.repository.IProveedorRepository;
 import com.udea.reservas.plataformareservas.recursos.model.Recurso;
@@ -86,14 +87,18 @@ public class ServiceCatalogService {
         }
 
         return serviceRepository.findAllByProveedor_IdOrderByNombreAscIdAsc(providerId)
-                .stream()
-                .map(service -> toProviderService(
-                        service,
-                        agendaRepository.findByServicio_Id(service.getId())
-                                .map(agenda -> agenda.getId())
-                                .orElse(null)
-                ))
-                .toList();
+            .stream()
+            .map(service -> toProviderService(service, agendaIdFor(service)))
+            .toList();
+    }
+
+    private Integer agendaIdFor(Servicio service) {
+        if (service == null || service.getId() == null) {
+            return null;
+        }
+        return agendaRepository.findByServicio_Id(service.getId())
+            .map(Agenda::getId)
+            .orElse(null);
     }
 
     @Transactional(readOnly = true)
@@ -292,7 +297,7 @@ public class ServiceCatalogService {
             service.getNombre(),
             service.getDuracionMinutos(),
             service.getProveedor().getNombreNegocio(),
-                agendaId
+            agendaId
         );
     }
 
