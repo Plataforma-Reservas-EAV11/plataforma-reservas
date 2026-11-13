@@ -34,6 +34,7 @@ public class ApiSecurityConfiguration {
                 "/api/v1/providers",
                 "/api/v1/providers/*/services",
                 "/api/v1/services/*/availability",
+                "/api/v1/providers/me",
                 "/api/v1/providers/me/resources",
                 "/api/v1/providers/me/resources/**",
                 "/api/v1/reservations/me/active"
@@ -41,6 +42,7 @@ public class ApiSecurityConfiguration {
             .authorizeHttpRequests(authorize ->
                 authorize
                     .requestMatchers(
+                        "/api/v1/providers/me",
                         "/api/v1/providers/me/services",
                         "/api/v1/providers/me/services/**",
                         "/api/v1/providers/me/resources",

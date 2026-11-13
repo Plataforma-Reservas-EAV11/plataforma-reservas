@@ -209,6 +209,24 @@ La respuesta expone sólo el identificador y nombre del negocio, con orden estab
 }
 ```
 
+### Consultar el perfil del proveedor autenticado
+
+`GET /api/v1/providers/me` requiere una sesión con rol `proveedor`; el perfil se resuelve con la identidad de la sesión y no acepta un `userId` por parámetro. Responde `401` sin sesión y `403` si la cuenta no es proveedor. Si el usuario no tiene negocio registrado devuelve `404` con `PROVIDER_NOT_FOUND`.
+
+```json
+{
+  "message": "Proveedor consultado correctamente.",
+  "data": {
+    "providerId": 4,
+    "userId": 31,
+    "name": "Ana Pérez",
+    "email": "ana@example.com",
+    "businessName": "Salón Central",
+    "phone": "3001234567"
+  }
+}
+```
+
 ### Listar servicios de un proveedor
 
 `GET /api/v1/providers/{providerId}/services`
