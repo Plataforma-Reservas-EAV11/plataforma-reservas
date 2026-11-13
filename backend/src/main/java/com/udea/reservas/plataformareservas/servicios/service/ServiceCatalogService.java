@@ -1,5 +1,6 @@
 package com.udea.reservas.plataformareservas.servicios.service;
 
+import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
 import com.udea.reservas.plataformareservas.common.BusinessRuleException;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
@@ -41,6 +42,7 @@ public class ServiceCatalogService {
     private final IServicioRepository serviceRepository;
     private final IHorarioDisponibleRepository scheduleRepository;
     private final IReservaRepository reservationRepository;
+    private final IAgendaRepository agendaRepository;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -84,9 +86,14 @@ public class ServiceCatalogService {
         }
 
         return serviceRepository.findAllByProveedor_IdOrderByNombreAscIdAsc(providerId)
-            .stream()
-            .map(ServiceCatalogService::toProviderService)
-            .toList();
+                .stream()
+                .map(service -> toProviderService(
+                        service,
+                        agendaRepository.findByServicio_Id(service.getId())
+                                .map(agenda -> agenda.getId())
+                                .orElse(null)
+                ))
+                .toList();
     }
 
     @Transactional(readOnly = true)
@@ -267,7 +274,7 @@ public class ServiceCatalogService {
         return new ProviderSummaryResponse(provider.getId(), provider.getNombreNegocio());
     }
 
-    private static ProviderServiceResponse toProviderService(Servicio service) {
+    private static ProviderServiceResponse toProviderService(Servicio service, Integer agendaId) {
         if (
             service == null ||
             service.getId() == null ||
@@ -284,7 +291,8 @@ public class ServiceCatalogService {
             service.getId(),
             service.getNombre(),
             service.getDuracionMinutos(),
-            service.getProveedor().getNombreNegocio()
+            service.getProveedor().getNombreNegocio(),
+                agendaId
         );
     }
 

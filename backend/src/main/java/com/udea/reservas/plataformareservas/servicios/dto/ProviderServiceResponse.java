@@ -4,5 +4,6 @@ public record ProviderServiceResponse(
     Integer id,
     String nombre,
     Integer duracionMinutos,
-    String proveedorNombre
+    String proveedorNombre,
+    Integer agendaId
 ) {}
