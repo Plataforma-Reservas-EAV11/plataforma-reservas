@@ -17,6 +17,7 @@ import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
 import com.udea.reservas.plataformareservas.recursos.model.Recurso;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -268,6 +269,133 @@ class HorarioDisponibleServiceTest {
         assertThat(((AgendaException) thrown).getStatus())
             .isEqualTo(HttpStatus.FORBIDDEN);
         verify(horarioDisponibleRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Lista los bloques de la agenda propia con sus datos de disponibilidad")
+    void listaHorariosDeLaAgendaPropia() {
+        // Arrange
+        Agenda agenda = crearAgenda();
+        List<HorarioDisponible> horarios = List.of(
+            crearHorario(agenda, 10, 1, LocalTime.of(8, 0), LocalTime.of(12, 0), 30),
+            crearHorario(agenda, 11, 3, LocalTime.of(14, 0), LocalTime.of(18, 0), 60)
+        );
+        when(agendaRepository.findById(agenda.getId())).thenReturn(
+            Optional.of(agenda)
+        );
+        when(
+            horarioDisponibleRepository.findAllByAgenda_IdOrderByDiaSemanaAscHoraInicioAsc(
+                agenda.getId()
+            )
+        ).thenReturn(horarios);
+
+        // Act
+        List<HorarioResponse> resultado = horarioDisponibleService.listarHorarios(
+            agenda.getId(),
+            USUARIO_DUENIO
+        );
+
+        // Assert
+        assertThat(resultado).hasSize(2);
+        assertThat(resultado)
+            .extracting(HorarioResponse::id)
+            .containsExactly(10, 11);
+        assertThat(resultado.get(0).agendaId()).isEqualTo(agenda.getId());
+        assertThat(resultado.get(0).diaSemana()).isEqualTo(1);
+        assertThat(resultado.get(0).horaInicio()).isEqualTo(LocalTime.of(8, 0));
+        assertThat(resultado.get(0).horaFin()).isEqualTo(LocalTime.of(12, 0));
+        assertThat(resultado.get(0).duracionSlotMin()).isEqualTo(30);
+        assertThat(resultado.get(1).duracionSlotMin()).isEqualTo(60);
+    }
+
+    @Test
+    @DisplayName("Lista vacía cuando la agenda no tiene bloques definidos")
+    void listaHorariosVaciaCuandoLaAgendaNoTieneBloques() {
+        // Arrange
+        Agenda agenda = crearAgenda();
+        when(agendaRepository.findById(agenda.getId())).thenReturn(
+            Optional.of(agenda)
+        );
+        when(
+            horarioDisponibleRepository.findAllByAgenda_IdOrderByDiaSemanaAscHoraInicioAsc(
+                agenda.getId()
+            )
+        ).thenReturn(List.of());
+
+        // Act
+        List<HorarioResponse> resultado = horarioDisponibleService.listarHorarios(
+            agenda.getId(),
+            USUARIO_DUENIO
+        );
+
+        // Assert
+        assertThat(resultado).isEmpty();
+        verify(horarioDisponibleRepository)
+            .findAllByAgenda_IdOrderByDiaSemanaAscHoraInicioAsc(agenda.getId());
+    }
+
+    @Test
+    @DisplayName("Lanzar excepción 404 al listar los horarios de una agenda inexistente")
+    void lanzaExcepcionAlListarAgendaNoExiste() {
+        // Arrange
+        when(agendaRepository.findById(7)).thenReturn(Optional.empty());
+
+        // Act
+        Throwable thrown = catchThrowable(() ->
+            horarioDisponibleService.listarHorarios(7, USUARIO_DUENIO)
+        );
+
+        // Assert
+        assertThat(thrown)
+            .isInstanceOf(AgendaException.class)
+            .hasMessage("La agenda con ID 7 no existe.");
+        assertThat(((AgendaException) thrown).getStatus())
+            .isEqualTo(HttpStatus.NOT_FOUND);
+        verify(horarioDisponibleRepository, never())
+            .findAllByAgenda_IdOrderByDiaSemanaAscHoraInicioAsc(any());
+    }
+
+    @Test
+    @DisplayName("Rechaza con 403 listar los horarios de la agenda de otro proveedor")
+    void rechazaListarAgendaDeOtroProveedor() {
+        // Arrange
+        Agenda agenda = crearAgenda();
+        int otroUsuario = USUARIO_DUENIO + 1;
+        when(agendaRepository.findById(agenda.getId())).thenReturn(
+            Optional.of(agenda)
+        );
+
+        // Act
+        Throwable thrown = catchThrowable(() ->
+            horarioDisponibleService.listarHorarios(agenda.getId(), otroUsuario)
+        );
+
+        // Assert
+        assertThat(thrown)
+            .isInstanceOf(AgendaException.class)
+            .hasMessage("No puedes consultar una agenda que no te pertenece.");
+        assertThat(((AgendaException) thrown).getStatus())
+            .isEqualTo(HttpStatus.FORBIDDEN);
+        verify(horarioDisponibleRepository, never())
+            .findAllByAgenda_IdOrderByDiaSemanaAscHoraInicioAsc(any());
+    }
+
+    private HorarioDisponible crearHorario(
+        Agenda agenda,
+        Integer id,
+        Integer diaSemana,
+        LocalTime horaInicio,
+        LocalTime horaFin,
+        Integer duracionSlotMin
+    ) {
+        return HorarioDisponible.builder()
+            .id(id)
+            .agenda(agenda)
+            .diaSemana(diaSemana)
+            .horaInicio(horaInicio)
+            .horaFin(horaFin)
+            .duracionSlotMin(duracionSlotMin)
+            .build();
     }
 
     private Agenda crearAgenda() {

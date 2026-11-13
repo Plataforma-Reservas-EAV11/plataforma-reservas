@@ -3,6 +3,8 @@ package com.udea.reservas.plataformareservas.agendas.service;
 import com.udea.reservas.plataformareservas.agendas.dto.CrearHorarioRequest;
 import com.udea.reservas.plataformareservas.agendas.dto.HorarioResponse;
 
+import java.util.List;
+
 public interface HorarioDisponibleService {
 
     /**
@@ -14,4 +16,6 @@ public interface HorarioDisponibleService {
         Integer usuarioId,
         CrearHorarioRequest request
     );
+
+    List<HorarioResponse> listarHorarios(Integer agendaId, Integer usuarioId);
 }
