@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 
 import com.udea.reservas.plataformareservas.agendas.model.Agenda;
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
+import com.udea.reservas.plataformareservas.agendas.repository.IAgendaRepository;
 import com.udea.reservas.plataformareservas.agendas.repository.IHorarioDisponibleRepository;
 import com.udea.reservas.plataformareservas.common.BusinessRuleException;
 import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
@@ -56,6 +57,9 @@ class ServiceCatalogServiceTest {
     @Mock
     private IReservaRepository reservationRepository;
 
+    @Mock
+    private IAgendaRepository agendaRepository;
+
     @InjectMocks
     private ServiceCatalogService catalogService;
 
@@ -66,6 +70,7 @@ class ServiceCatalogServiceTest {
             serviceRepository,
             scheduleRepository,
             reservationRepository,
+            agendaRepository,
             Clock.fixed(
                 Instant.parse("2026-11-05T15:00:00Z"),
                 ZoneId.of("America/Bogota")
@@ -145,6 +150,8 @@ class ServiceCatalogServiceTest {
         when(providerRepository.existsById(PROVIDER_ID)).thenReturn(true);
         when(serviceRepository.findAllByProveedor_IdOrderByNombreAscIdAsc(PROVIDER_ID))
             .thenReturn(List.of(service));
+        when(agendaRepository.findByServicio_Id(SERVICE_ID))
+            .thenReturn(Optional.of(Agenda.builder().id(77).servicio(service).build()));
 
         var response = catalogService.getProviderServices(PROVIDER_ID);
 
@@ -152,6 +159,7 @@ class ServiceCatalogServiceTest {
         assertThat(response.getFirst().nombre()).isEqualTo("Corte");
         assertThat(response.getFirst().duracionMinutos()).isEqualTo(30);
         assertThat(response.getFirst().proveedorNombre()).isEqualTo("Salón Central");
+        assertThat(response.getFirst().agendaId()).isEqualTo(77);
         verify(serviceRepository).findAllByProveedor_IdOrderByNombreAscIdAsc(PROVIDER_ID);
     }
 
