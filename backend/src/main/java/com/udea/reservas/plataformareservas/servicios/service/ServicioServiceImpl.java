@@ -12,7 +12,6 @@ import com.udea.reservas.plataformareservas.servicios.dto.CrearServicioRequest;
 import com.udea.reservas.plataformareservas.servicios.dto.ServicioResponse;
 import com.udea.reservas.plataformareservas.servicios.model.Servicio;
 import com.udea.reservas.plataformareservas.servicios.repository.IServicioRepository;
-import java.util.ArrayList;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -33,26 +32,7 @@ public class ServicioServiceImpl implements ServicioService {
     @Transactional
     public ServicioResponse crearServicio(Integer usuarioId, CrearServicioRequest request) {
         Proveedor proveedor = obtenerProveedor(usuarioId);
-        List<Integer> recursoIds = request.recursoIds() == null
-            ? List.of()
-            : request.recursoIds();
-        if (recursoIds.stream().distinct().count() != recursoIds.size()) {
-            throw new BusinessRuleException(
-                "INVALID_SERVICE_RESOURCES",
-                "La lista de recursos contiene identificadores duplicados.",
-                HttpStatus.BAD_REQUEST.value()
-            );
-        }
-        List<Recurso> recursos = recursoIds.isEmpty()
-            ? new ArrayList<>()
-            : recursoRepository.findAllByIdInAndProveedor_Id(recursoIds, proveedor.getId());
-        if (recursos.size() != recursoIds.size()) {
-            throw new BusinessRuleException(
-                "INVALID_SERVICE_RESOURCES",
-                "Todos los recursos deben existir y pertenecer al proveedor autenticado.",
-                HttpStatus.BAD_REQUEST.value()
-            );
-        }
+        List<Recurso> recursos = resolverRecursos(proveedor, request.recursoIds());
 
         Servicio servicio = Servicio.builder()
             .proveedor(proveedor)
@@ -70,10 +50,9 @@ public class ServicioServiceImpl implements ServicioService {
                 .build()
         );
 
-        List<Integer> idsRecursos = new ArrayList<>(recursos.size());
-        for (Recurso recurso : recursos) {
-            idsRecursos.add(recurso.getId());
-        }
+        List<Integer> idsRecursos = recursos.stream()
+            .map(Recurso::getId)
+            .toList();
 
         return new ServicioResponse(
             guardado.getId(),
@@ -83,6 +62,55 @@ public class ServicioServiceImpl implements ServicioService {
             guardado.getDuracionMinutos(),
             idsRecursos
         );
+    }
+
+    /**
+     * Resuelve y valida los recursos que se asociarán al servicio.
+     * Un servicio sin recursos activos no genera turnos reservables, por lo que
+     * el alta exige al menos un recurso del proveedor autenticado y activo.
+     */
+    private List<Recurso> resolverRecursos(
+        Proveedor proveedor,
+        List<Integer> recursoIdsSolicitados
+    ) {
+        List<Integer> recursoIds = recursoIdsSolicitados == null
+            ? List.of()
+            : recursoIdsSolicitados;
+
+        if (recursoIds.isEmpty()) {
+            throw new BusinessRuleException(
+                "RESOURCE_REQUIRED",
+                "Debes asociar al menos un recurso activo al servicio.",
+                HttpStatus.BAD_REQUEST.value()
+            );
+        }
+        if (recursoIds.stream().distinct().count() != recursoIds.size()) {
+            throw new BusinessRuleException(
+                "INVALID_SERVICE_RESOURCES",
+                "La lista de recursos contiene identificadores duplicados.",
+                HttpStatus.BAD_REQUEST.value()
+            );
+        }
+
+        List<Recurso> recursos =
+            recursoRepository.findAllByIdInAndProveedor_Id(recursoIds, proveedor.getId());
+
+        if (recursos.size() != recursoIds.size()) {
+            throw new BusinessRuleException(
+                "INVALID_SERVICE_RESOURCES",
+                "Todos los recursos deben existir y pertenecer al proveedor autenticado.",
+                HttpStatus.BAD_REQUEST.value()
+            );
+        }
+        if (recursos.stream().noneMatch(Recurso::isActivo)) {
+            throw new BusinessRuleException(
+                "INVALID_SERVICE_RESOURCES",
+                "El servicio necesita al menos un recurso activo.",
+                HttpStatus.BAD_REQUEST.value()
+            );
+        }
+
+        return recursos;
     }
 
     @Override

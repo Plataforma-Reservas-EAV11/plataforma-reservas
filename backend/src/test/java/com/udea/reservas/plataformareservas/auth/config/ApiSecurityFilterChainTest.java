@@ -38,6 +38,7 @@ import com.udea.reservas.plataformareservas.servicios.service.ServiceCatalogServ
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -413,7 +414,8 @@ class ApiSecurityFilterChainTest {
         CrearServicioRequest request = new CrearServicioRequest(
             "Corte",
             "Corte de cabello",
-            30
+            30,
+            List.of(51)
         );
         when(servicioService.crearServicio(7, request)).thenReturn(
             new ServicioResponse(41, 42, "Corte", "Corte de cabello", 30)
@@ -508,7 +510,8 @@ class ApiSecurityFilterChainTest {
         CrearServicioRequest request = new CrearServicioRequest(
             "Corte",
             "Corte de cabello",
-            30
+            30,
+            List.of(51)
         );
         when(servicioService.crearServicio(7, request)).thenReturn(
             new ServicioResponse(41, 42, "Corte", "Corte de cabello", 30)
@@ -521,7 +524,7 @@ class ApiSecurityFilterChainTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     "{\"nombre\":\"Corte\",\"descripcion\":\"Corte de cabello\"," +
-                    "\"duracion\":30,\"proveedor_id\":999}"
+                    "\"duracion\":30,\"recursoIds\":[51],\"proveedor_id\":999}"
                 )
         )
             .andExpect(status().isCreated())
@@ -531,7 +534,8 @@ class ApiSecurityFilterChainTest {
     }
 
     private static final String SERVICIO_BODY =
-        "{\"nombre\":\"Corte\",\"descripcion\":\"Corte de cabello\",\"duracion\":30}";
+        "{\"nombre\":\"Corte\",\"descripcion\":\"Corte de cabello\"," +
+        "\"duracion\":30,\"recursoIds\":[51]}";
     private static final String RESOURCE_BODY =
         "{\"nombre\":\"Consultorio\",\"tipo\":\"sala\"}";
 

@@ -156,7 +156,7 @@ Endpoint: `POST /api/v1/providers/me/services` (requiere sesión de proveedor y 
 }
 ```
 
-`duracion` se expresa en minutos. Nombre y descripción son obligatorios (máximo 150 y 500 caracteres); la duración es un entero positivo y no tiene un máximo de negocio definido. `recursoIds` es opcional; si se envía, todos deben existir y pertenecer al proveedor autenticado. Un servicio sin recursos compatibles activos puede existir, pero no acepta reservas hasta disponer de al menos uno. Los nombres duplicados están permitidos. El proveedor propietario se determina mediante la identidad de la sesión; `proveedor_id` no forma parte del DTO y enviar ese dato no cambia el propietario. La operación también crea una agenda activa y devuelve su `agendaId`, que se usa para registrar bloques de disponibilidad.
+`duracion` se expresa en minutos. Nombre y descripción son obligatorios (máximo 150 y 500 caracteres); la duración es un entero positivo y no tiene un máximo de negocio definido. `recursoIds` es obligatorio y debe incluir al menos un recurso del proveedor autenticado: todos deben existir, pertenecerle, no estar repetidos y contar con al menos uno activo. Si el proveedor desactiva después todos los recursos compatibles, el servicio deja de aceptar reservas hasta recuperar uno activo. Los nombres duplicados están permitidos. El proveedor propietario se determina mediante la identidad de la sesión; `proveedor_id` no forma parte del DTO y enviar ese dato no cambia el propietario. La operación también crea una agenda activa y devuelve su `agendaId`, que se usa para registrar bloques de disponibilidad.
 
 **Respuestas:**
 - `201 Created` — servicio y agenda creados; la respuesta incluye sus identificadores, los datos del servicio y los recursos asociados.

@@ -8,6 +8,7 @@ Característica: Crear mis servicios
   @positivo @P1
   Escenario: Crear un servicio con datos válidos
     Dado que existe el proveedor "Proveedor de prueba" con correo "proveedor-servicio@test.com"
+    Y que el proveedor tiene el recurso "Sala de corte"
     Cuando creo un servicio con nombre "Corte", descripción "Corte de cabello", duración 30 minutos
     Entonces la respuesta tiene el código HTTP 201
     Y el servicio "Corte" queda guardado para el proveedor autenticado
@@ -23,6 +24,7 @@ Característica: Crear mis servicios
   @positivo @P1
   Escenario: Permitir nombres duplicados para un proveedor
     Dado que existe el proveedor "Proveedor duplicados" con correo "duplicados@test.com"
+    Y que el proveedor tiene el recurso "Sala de corte"
     Cuando creo dos servicios con el mismo nombre "Corte"
     Entonces la respuesta tiene el código HTTP 201
     Y el proveedor autenticado tiene 2 servicios guardados
