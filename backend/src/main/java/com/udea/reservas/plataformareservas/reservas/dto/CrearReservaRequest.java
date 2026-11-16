@@ -10,7 +10,7 @@ import java.time.LocalTime;
  * autenticada, de modo que nadie puede reservar a nombre de otra persona.
  */
 public record CrearReservaRequest(
-        @NotNull Integer horarioId,
+        @NotNull Integer servicioId,
         @NotNull LocalDate fecha,
         @NotNull LocalTime hora
 ) {

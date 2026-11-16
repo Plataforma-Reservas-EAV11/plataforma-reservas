@@ -5,4 +5,6 @@ import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistration
 
 public interface ProviderRegistrationService {
     ProviderRegistrationResponse register(ProviderRegistrationRequest request);
+
+    ProviderRegistrationResponse getByUserId(Integer usuarioId);
 }

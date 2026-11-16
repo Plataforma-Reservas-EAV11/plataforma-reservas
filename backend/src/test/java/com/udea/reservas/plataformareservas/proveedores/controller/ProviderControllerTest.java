@@ -1,17 +1,27 @@
 package com.udea.reservas.plataformareservas.proveedores.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.udea.reservas.plataformareservas.TestAuthentication;
+import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
 import com.udea.reservas.plataformareservas.common.BusinessRuleException;
+import com.udea.reservas.plataformareservas.common.exception.GlobalExceptionHandler;
+import com.udea.reservas.plataformareservas.common.exception.ProviderApiExceptionHandler;
 import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistrationRequest;
 import com.udea.reservas.plataformareservas.proveedores.dto.ProviderRegistrationResponse;
 import com.udea.reservas.plataformareservas.proveedores.service.ProviderRegistrationService;
+import com.udea.reservas.plataformareservas.servicios.dto.ProviderPageResponse;
+import com.udea.reservas.plataformareservas.servicios.dto.ProviderSummaryResponse;
+import com.udea.reservas.plataformareservas.servicios.service.ServiceCatalogService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,15 +31,20 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import tools.jackson.databind.ObjectMapper;
+import java.util.List;
 
 @ExtendWith(MockitoExtension.class)
 class ProviderControllerTest {
 
     @Mock
     private ProviderRegistrationService registrationService;
+
+    @Mock
+    private ServiceCatalogService serviceCatalogService;
 
     @InjectMocks
     private ProviderController providerController;
@@ -39,8 +54,91 @@ class ProviderControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(providerController).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(providerController)
+            .setControllerAdvice(new ProviderApiExceptionHandler(new GlobalExceptionHandler()), new GlobalExceptionHandler())
+            .setCustomArgumentResolvers(TestAuthentication.argumentResolver())
+            .build();
         objectMapper = new ObjectMapper();
+        TestAuthentication.authenticateAs(
+            new UserPrincipal(7, "Ana", "ana@example.com", "proveedor", "hash", true)
+        );
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    @Test
+    @DisplayName("Lista proveedores con paginación y sólo los campos públicos")
+    void listProvidersReturnsPaginatedPublicFields() throws Exception {
+        ProviderPageResponse page = new ProviderPageResponse(
+            List.of(new ProviderSummaryResponse(47, "MiNegocio")),
+            1,
+            5,
+            6,
+            2,
+            false,
+            true,
+            false
+        );
+        when(serviceCatalogService.getProviders(1, 5)).thenReturn(page);
+
+        mockMvc.perform(get("/api/v1/providers").queryParam("page", "1").queryParam("size", "5"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Proveedores consultados correctamente."))
+            .andExpect(jsonPath("$.data.content[0].id").value(47))
+            .andExpect(jsonPath("$.data.content[0].nombre").value("MiNegocio"))
+            .andExpect(jsonPath("$.data.content[0].telefono").doesNotExist())
+            .andExpect(jsonPath("$.data.page").value(1))
+            .andExpect(jsonPath("$.data.size").value(5))
+            .andExpect(jsonPath("$.data.totalElements").value(6))
+            .andExpect(jsonPath("$.data.totalPages").value(2))
+            .andExpect(jsonPath("$.data.first").value(false))
+            .andExpect(jsonPath("$.data.last").value(true))
+            .andExpect(jsonPath("$.data.empty").value(false));
+
+        verify(serviceCatalogService).getProviders(1, 5);
+    }
+
+    @Test
+    @DisplayName("Devuelve resultado vacío cuando no hay proveedores")
+    void listProvidersReturnsEmptyPage() throws Exception {
+        when(serviceCatalogService.getProviders(0, 20)).thenReturn(
+            new ProviderPageResponse(List.of(), 0, 20, 0, 0, true, true, true)
+        );
+
+        mockMvc.perform(get("/api/v1/providers"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.content").isEmpty())
+            .andExpect(jsonPath("$.data.empty").value(true));
+    }
+
+    @Test
+    @DisplayName("Devuelve error controlado para parámetros de paginación inválidos")
+    void listProvidersReturnsBadRequestForInvalidPagination() throws Exception {
+        when(serviceCatalogService.getProviders(0, 101)).thenThrow(
+            new BusinessRuleException(
+                "INVALID_PAGINATION",
+                "La paginación debe tener una página no negativa y un tamaño entre 1 y 100.",
+                HttpStatus.BAD_REQUEST.value()
+            )
+        );
+
+        mockMvc.perform(get("/api/v1/providers").queryParam("size", "101"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("INVALID_PAGINATION"))
+            .andExpect(jsonPath("$.traceId").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("Devuelve error de tipo inválido para parámetros no enteros")
+    void listProvidersReturnsBadRequestForNonNumericPagination() throws Exception {
+        mockMvc.perform(get("/api/v1/providers").queryParam("page", "first"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("INVALID_PARAMETER"));
+
+        verify(serviceCatalogService, never()).getProviders(anyInt(), anyInt());
     }
 
     @Test
@@ -196,6 +294,85 @@ class ProviderControllerTest {
             .andExpect(jsonPath("$.details[0]").value("password es demasiado larga"));
 
         verify(registrationService, never()).register(any(ProviderRegistrationRequest.class));
+    }
+
+    @Test
+    @DisplayName("Consulta el perfil del proveedor autenticado")
+    void getAuthenticatedProviderReturnsProfile() throws Exception {
+        // Arrange
+        ProviderRegistrationResponse response = new ProviderRegistrationResponse(
+            47,
+            7,
+            "Ana",
+            "ana@example.com",
+            "MiNegocio",
+            "3001234567"
+        );
+        when(registrationService.getByUserId(7)).thenReturn(response);
+
+        // Act and Assert
+        mockMvc.perform(get("/api/v1/providers/me"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Proveedor consultado correctamente."))
+            .andExpect(jsonPath("$.data.providerId").value(47))
+            .andExpect(jsonPath("$.data.userId").value(7))
+            .andExpect(jsonPath("$.data.name").value("Ana"))
+            .andExpect(jsonPath("$.data.email").value("ana@example.com"))
+            .andExpect(jsonPath("$.data.businessName").value("MiNegocio"))
+            .andExpect(jsonPath("$.data.phone").value("3001234567"))
+            .andExpect(jsonPath("$.data.password").doesNotExist())
+            .andExpect(jsonPath("$.data.passwordHash").doesNotExist());
+
+        verify(registrationService).getByUserId(7);
+    }
+
+    @Test
+    @DisplayName("El perfil se consulta con la identidad de la sesión, no con un userId enviado")
+    void getAuthenticatedProviderUsesSessionIdentity() throws Exception {
+        // Arrange
+        when(registrationService.getByUserId(7)).thenReturn(
+            new ProviderRegistrationResponse(
+                47,
+                7,
+                "Ana",
+                "ana@example.com",
+                "MiNegocio",
+                "3001234567"
+            )
+        );
+
+        // Act and Assert
+        mockMvc.perform(get("/api/v1/providers/me").queryParam("userId", "99"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data.userId").value(7));
+
+        verify(registrationService).getByUserId(7);
+        verify(registrationService, never()).getByUserId(99);
+    }
+
+    @Test
+    @DisplayName("Devuelve 404 cuando el usuario autenticado no tiene perfil de proveedor")
+    void getAuthenticatedProviderReturnsNotFoundWhenProfileIsMissing() throws Exception {
+        // Arrange
+        when(registrationService.getByUserId(7)).thenThrow(
+            new BusinessRuleException(
+                "PROVIDER_NOT_FOUND",
+                "El usuario autenticado no tiene un negocio registrado.",
+                HttpStatus.NOT_FOUND.value()
+            )
+        );
+
+        // Act and Assert
+        mockMvc.perform(get("/api/v1/providers/me"))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.errorCode").value("PROVIDER_NOT_FOUND"))
+            .andExpect(
+                jsonPath("$.message")
+                    .value("El usuario autenticado no tiene un negocio registrado.")
+            )
+            .andExpect(jsonPath("$.traceId").isNotEmpty());
+
+        verify(registrationService).getByUserId(7);
     }
 
     private ProviderRegistrationRequest validRequest() {

@@ -6,8 +6,10 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Collection;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 class UserPrincipalTest {
 
@@ -34,11 +36,45 @@ class UserPrincipalTest {
         assertEquals("usuario", principal.getRole());
         assertEquals("ana@example.com", principal.getUsername());
         assertEquals("hashed-secret", principal.getPassword());
-        assertTrue(authorities.isEmpty());
+        assertEquals(
+            List.of(new SimpleGrantedAuthority("ROLE_USUARIO")),
+            authorities
+        );
         assertTrue(principal.isAccountNonExpired());
         assertTrue(principal.isAccountNonLocked());
         assertTrue(principal.isCredentialsNonExpired());
         assertTrue(principal.isEnabled());
+    }
+
+    @Test
+    void providerRoleIsMappedToSpringAuthority() {
+        UserPrincipal principal = new UserPrincipal(
+            7,
+            "Ana",
+            "ana@example.com",
+            "proveedor",
+            "hashed-secret",
+            true
+        );
+
+        assertEquals(
+            List.of(new SimpleGrantedAuthority("ROLE_PROVEEDOR")),
+            principal.getAuthorities()
+        );
+    }
+
+    @Test
+    void blankRoleHasNoAuthority() {
+        UserPrincipal principal = new UserPrincipal(
+            7,
+            "Ana",
+            "ana@example.com",
+            " ",
+            "hashed-secret",
+            true
+        );
+
+        assertTrue(principal.getAuthorities().isEmpty());
     }
 
     @Test

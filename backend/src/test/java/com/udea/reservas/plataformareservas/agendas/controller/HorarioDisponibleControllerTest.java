@@ -16,6 +16,7 @@ import com.udea.reservas.plataformareservas.agendas.exception.AgendaException;
 import com.udea.reservas.plataformareservas.agendas.service.HorarioDisponibleService;
 import com.udea.reservas.plataformareservas.common.exception.GlobalExceptionHandler;
 import java.time.LocalTime;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -329,5 +330,127 @@ class HorarioDisponibleControllerTest {
             .andExpect(
                 content().string("No puedes modificar una agenda que no te pertenece.")
             );
+    }
+
+    @Test
+    @DisplayName("Consultar los horarios de una agenda propia retorna la lista de bloques")
+    void listarHorariosExitoso() throws Exception {
+        // Arrange
+        int agendaId = 7;
+        List<HorarioResponse> horarios = List.of(
+            new HorarioResponse(
+                10,
+                agendaId,
+                1,
+                LocalTime.of(8, 0),
+                LocalTime.of(12, 0),
+                30
+            ),
+            new HorarioResponse(
+                11,
+                agendaId,
+                3,
+                LocalTime.of(14, 0),
+                LocalTime.of(18, 0),
+                60
+            )
+        );
+        when(horarioDisponibleService.listarHorarios(agendaId, USUARIO_SESION))
+            .thenReturn(horarios);
+
+        // Act
+        mockMvc
+            .perform(get("/api/agendas/{agendaId}/horarios", agendaId))
+            // Assert
+            .andExpect(status().isOk())
+            .andExpect(
+                jsonPath("$.mensaje").value("Horarios consultados exitosamente")
+            )
+            .andExpect(jsonPath("$.data.length()").value(2))
+            .andExpect(jsonPath("$.data[0].id").value(10))
+            .andExpect(jsonPath("$.data[0].agendaId").value(agendaId))
+            .andExpect(jsonPath("$.data[0].diaSemana").value(1))
+            .andExpect(jsonPath("$.data[0].horaInicio").value("08:00:00"))
+            .andExpect(jsonPath("$.data[0].horaFin").value("12:00:00"))
+            .andExpect(jsonPath("$.data[0].duracionSlotMin").value(30))
+            .andExpect(jsonPath("$.data[1].diaSemana").value(3))
+            .andExpect(jsonPath("$.data[1].horaInicio").value("14:00:00"));
+
+        verify(horarioDisponibleService).listarHorarios(agendaId, USUARIO_SESION);
+    }
+
+    @Test
+    @DisplayName("Consultar los horarios de una agenda sin bloques retorna una lista vacía")
+    void listarHorariosDeAgendaSinBloques() throws Exception {
+        // Arrange
+        when(horarioDisponibleService.listarHorarios(5, USUARIO_SESION))
+            .thenReturn(List.of());
+
+        // Act
+        mockMvc
+            .perform(get("/api/agendas/{agendaId}/horarios", 5))
+            // Assert
+            .andExpect(status().isOk())
+            .andExpect(
+                jsonPath("$.mensaje").value("Horarios consultados exitosamente")
+            )
+            .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    @DisplayName("Consultar los horarios de una agenda inexistente retorna 404 con el mensaje del servicio")
+    void listarHorariosAgendaInexistente() throws Exception {
+        // Arrange
+        when(horarioDisponibleService.listarHorarios(99, USUARIO_SESION))
+            .thenThrow(
+                new AgendaException(
+                    "La agenda con ID 99 no existe.",
+                    HttpStatus.NOT_FOUND
+                )
+            );
+
+        // Act
+        mockMvc
+            .perform(get("/api/agendas/{agendaId}/horarios", 99))
+            // Assert
+            .andExpect(status().isNotFound())
+            .andExpect(content().string("La agenda con ID 99 no existe."));
+    }
+
+    @Test
+    @DisplayName("Consultar los horarios de la agenda de otro proveedor retorna 403 con el mensaje del servicio")
+    void listarHorariosAgendaAjena() throws Exception {
+        // Arrange
+        when(horarioDisponibleService.listarHorarios(4, USUARIO_SESION))
+            .thenThrow(
+                new AgendaException(
+                    "No puedes consultar una agenda que no te pertenece.",
+                    HttpStatus.FORBIDDEN
+                )
+            );
+
+        // Act
+        mockMvc
+            .perform(get("/api/agendas/{agendaId}/horarios", 4))
+            // Assert
+            .andExpect(status().isForbidden())
+            .andExpect(
+                content().string(
+                    "No puedes consultar una agenda que no te pertenece."
+                )
+            );
+    }
+
+    @Test
+    @DisplayName("Consultar horarios con un id de agenda no numérico retorna 400")
+    void listarHorariosConAgendaNoNumerica() throws Exception {
+        // Act
+        mockMvc
+            .perform(get("/api/agendas/{agendaId}/horarios", "abc"))
+            // Assert
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.errorCode").value("INVALID_PARAMETER"));
+
+        verify(horarioDisponibleService, never()).listarHorarios(anyInt(), any());
     }
 }

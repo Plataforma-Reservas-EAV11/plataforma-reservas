@@ -40,6 +40,18 @@ public class HorarioDisponibleController {
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{agendaId}/horarios")
+    public ResponseEntity<Map<String, Object>> listarHorarios(
+            @AuthenticationPrincipal UserPrincipal user,
+            @PathVariable Integer agendaId
+    ) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("mensaje", "Horarios consultados exitosamente");
+        response.put("data", service.listarHorarios(agendaId, user.getId()));
+
+        return ResponseEntity.ok(response);
+    }
+
     @ExceptionHandler(AgendaException.class)
     public ResponseEntity<String> manejarAgendaException(AgendaException ex) {
         return ResponseEntity.status(ex.getStatus()).body(ex.getMessage());

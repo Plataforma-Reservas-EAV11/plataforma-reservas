@@ -16,6 +16,7 @@ import com.udea.reservas.plataformareservas.proveedores.model.Proveedor;
 import com.udea.reservas.plataformareservas.proveedores.repository.IProveedorRepository;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import com.udea.reservas.plataformareservas.usuarios.repository.UserRepository;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -146,6 +147,94 @@ class ProviderRegistrationServiceImplTest {
                 assertThat(businessException.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
             });
         verifyNoInteractions(usuarioRepository, proveedorRepository, passwordEncoder);
+    }
+
+    @Test
+    @DisplayName("Consulta el perfil del proveedor del usuario autenticado")
+    void getByUserIdReturnsProviderProfile() {
+        // Arrange
+        User usuario = User.builder()
+            .id(31)
+            .name("Ana Pérez")
+            .email("ana@example.com")
+            .role("proveedor")
+            .build();
+        Proveedor proveedor = Proveedor.builder()
+            .id(47)
+            .usuario(usuario)
+            .nombreNegocio("MiNegocio")
+            .telefono("3001234567")
+            .build();
+        when(proveedorRepository.findAllByUsuario_Id(31))
+            .thenReturn(List.of(proveedor));
+
+        // Act
+        ProviderRegistrationResponse response = registrationService.getByUserId(31);
+
+        // Assert
+        assertThat(response).isEqualTo(
+            new ProviderRegistrationResponse(
+                47,
+                31,
+                "Ana Pérez",
+                "ana@example.com",
+                "MiNegocio",
+                "3001234567"
+            )
+        );
+        verify(proveedorRepository).findAllByUsuario_Id(31);
+    }
+
+    @Test
+    @DisplayName("Devuelve 404 cuando el usuario no tiene perfil de proveedor")
+    void getByUserIdWithoutProfileThrowsProviderNotFound() {
+        // Arrange
+        when(proveedorRepository.findAllByUsuario_Id(99)).thenReturn(List.of());
+
+        // Act and Assert
+        assertThatThrownBy(() -> registrationService.getByUserId(99))
+            .isInstanceOf(BusinessRuleException.class)
+            .satisfies(exception -> {
+                BusinessRuleException businessException = (BusinessRuleException) exception;
+                assertThat(businessException.getErrorCode()).isEqualTo("PROVIDER_NOT_FOUND");
+                assertThat(businessException.getMessage())
+                    .isEqualTo("El usuario autenticado no tiene un negocio registrado.");
+                assertThat(businessException.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+            });
+        verify(proveedorRepository).findAllByUsuario_Id(99);
+    }
+
+    @Test
+    @DisplayName("Con perfiles duplicados devuelve el primero sin fallar")
+    void getByUserIdWithDuplicateProfilesReturnsFirstProfile() {
+        // Arrange
+        User usuario = User.builder()
+            .id(31)
+            .name("Ana Pérez")
+            .email("ana@example.com")
+            .role("proveedor")
+            .build();
+        Proveedor primero = Proveedor.builder()
+            .id(47)
+            .usuario(usuario)
+            .nombreNegocio("MiNegocio")
+            .telefono("3001234567")
+            .build();
+        Proveedor segundo = Proveedor.builder()
+            .id(48)
+            .usuario(usuario)
+            .nombreNegocio("OtroNegocio")
+            .telefono("3009999999")
+            .build();
+        when(proveedorRepository.findAllByUsuario_Id(31))
+            .thenReturn(List.of(primero, segundo));
+
+        // Act
+        ProviderRegistrationResponse response = registrationService.getByUserId(31);
+
+        // Assert
+        assertThat(response.providerId()).isEqualTo(47);
+        assertThat(response.businessName()).isEqualTo("MiNegocio");
     }
 
     private ProviderRegistrationRequest validRequest(

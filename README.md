@@ -106,18 +106,20 @@ Endpoint: `POST /api/reservas` (requiere sesión; el usuario es el de la sesión
 **Request body:**
 ```json
 {
-  "horarioId": 1,
+  "servicioId": 1,
   "fecha": "2026-09-20",
   "hora": "09:00:00"
 }
 ```
 
+El cliente no selecciona el recurso. El backend usa la duración del servicio, valida el bloque de disponibilidad y asigna automáticamente un recurso compatible y activo. Si no hay recursos disponibles, responde `409 Conflict`. El recurso asignado y `horaFin` se incluyen en la respuesta.
+
 **Respuestas:**
 - `201 Created` — reserva creada exitosamente.
-- `400 Bad Request` — horario no habilitado por el proveedor (agenda inactiva), fecha que no cae en el día de la semana del horario, fecha/hora fuera del rango del horario, o fecha/hora ya pasada (según la zona `APP_TIME_ZONE`, por defecto `America/Bogota`).
+- `400 Bad Request` — agenda inactiva, fecha que no cae en un día habilitado, duración del servicio fuera del bloque o fecha/hora ya pasada (según `APP_TIME_ZONE`, por defecto `America/Bogota`).
 - `401 Unauthorized` — no hay sesión iniciada.
-- `404 Not Found` — el usuario de la sesión o el horario indicado no existe.
-- `409 Conflict` — el horario ya tiene una reserva activa para esa fecha (evita doble reserva, también cuando dos solicitudes llegan al mismo tiempo).
+- `404 Not Found` — el usuario, servicio o agenda configurada no existe.
+- `409 Conflict` — no hay recurso compatible disponible para todo el intervalo solicitado. PostgreSQL también impide intervalos activos superpuestos para el mismo recurso.
 
 
 ## HU: Definir agenda y horarios disponibles
@@ -140,6 +142,165 @@ Endpoint: `POST /api/agendas/{agendaId}/horarios` (requiere sesión de proveedor
 - `403 Forbidden` — la agenda pertenece a otro proveedor.
 - `404 Not Found` — la agenda indicada no existe.
 
+## HU: Crear mis servicios
+
+Endpoint: `POST /api/v1/providers/me/services` (requiere sesión de proveedor y token CSRF válido).
+
+**Request body:**
+```json
+{
+  "nombre": "Corte",
+  "descripcion": "Corte de cabello",
+  "duracion": 30,
+  "recursoIds": [1, 2]
+}
+```
+
+`duracion` se expresa en minutos. Nombre y descripción son obligatorios (máximo 150 y 500 caracteres); la duración es un entero positivo y no tiene un máximo de negocio definido. `recursoIds` es obligatorio y debe incluir al menos un recurso del proveedor autenticado: todos deben existir, pertenecerle, no estar repetidos y contar con al menos uno activo. Si el proveedor desactiva después todos los recursos compatibles, el servicio deja de aceptar reservas hasta recuperar uno activo. Los nombres duplicados están permitidos. El proveedor propietario se determina mediante la identidad de la sesión; `proveedor_id` no forma parte del DTO y enviar ese dato no cambia el propietario. La operación también crea una agenda activa y devuelve su `agendaId`, que se usa para registrar bloques de disponibilidad.
+
+**Respuestas:**
+- `201 Created` — servicio y agenda creados; la respuesta incluye sus identificadores, los datos del servicio y los recursos asociados.
+- `400 Bad Request` — cuerpo inválido o campos que incumplen las validaciones.
+- `401 Unauthorized` — no hay sesión iniciada.
+- `403 Forbidden` — la cuenta no tiene rol proveedor o falta el token CSRF.
+- `404 Not Found` — el usuario no tiene un perfil de proveedor.
+- `400 Bad Request` — alguno de los recursos indicados no existe, pertenece a otro proveedor o aparece duplicado.
+- `409 Conflict` — el usuario tiene más de un perfil de proveedor; no se escoge ninguno automáticamente.
+
+`backend/src/main/resources/db/schema.sql` es el esquema local usado por Testcontainers. La migración existente `backend/src/main/resources/db/migraciones/2026-11-02-crear-servicio.sql` crea únicamente `servicio`; no incluye la asociación con recursos ni los nuevos datos/restricciones de reservas. No desplegar esta versión en una base existente hasta preparar y revisar una migración aditiva compatible con sus datos: en particular, las reservas activas históricas no tienen servicio/duración y requieren una decisión de backfill antes de exigirles recurso e intervalo. No se conectó ni modificó Supabase.
+
+### Eliminar un servicio
+
+`GET /api/v1/providers/me/services` (HU-12, "Ver mis servicios") requiere sesión de proveedor y devuelve `200` con los servicios propios no eliminados, ordenados por nombre: `{ "message": "...", "data": [{ "id", "nombre", "duracionMinutos", "estado" }] }`. El modelo no guarda un estado propio (solo eliminación lógica), por lo que `estado` es siempre `"activo"`. Si el proveedor no tiene servicios, devuelve `data: []` y el mensaje `"Aún no tienes servicios registrados."`. Sin sesión responde `401`, con rol de cliente `403` y sin perfil de proveedor `404` (`PROVIDER_PROFILE_NOT_FOUND`).
+
+`DELETE /api/v1/providers/me/services/{servicioId}` requiere sesión de proveedor y token CSRF. Elimina lógicamente un servicio propio sin reservas activas y conserva sus datos y reservas históricas. Un servicio eliminado no aparece en el catálogo ni admite nuevas reservas. Devuelve `200` al eliminar, `404` para servicios ajenos, inexistentes o ya eliminados, y `409` (`SERVICE_HAS_ACTIVE_RESERVATIONS`) si existen reservas activas.
+
+En bases existentes, ejecutar previamente `backend/src/main/resources/db/migraciones/2026-11-06-eliminacion-logica-servicio.sql`, además de aplicar las migraciones de esquema pendientes indicadas arriba.
+
+Esta migración tampoco cambia la cardinalidad de `proveedor.usuario_id`; el endpoint rechaza perfiles duplicados. Antes de decidir una restricción única futura, revisar los duplicados con una consulta de solo lectura:
+```sql
+SELECT usuario_id, COUNT(*)
+FROM proveedor
+GROUP BY usuario_id
+HAVING COUNT(*) > 1;
+```
+No se eliminan ni combinan perfiles automáticamente. La interfaz web no está en este repositorio.
+
+## HU: Consultar servicios y horarios disponibles
+
+Las tres consultas requieren una sesión iniciada. Son operaciones `GET` y no requieren token CSRF. Las respuestas exitosas usan el sobre `{ "message": "...", "data": ... }`.
+
+### Listar proveedores
+
+`GET /api/v1/providers?page=0&size=20` (página desde cero; tamaño entre 1 y 100).
+
+La respuesta expone sólo el identificador y nombre del negocio, con orden estable por nombre e identificador:
+```json
+{
+  "message": "Proveedores consultados correctamente.",
+  "data": {
+    "content": [{ "id": 4, "nombre": "Salón Central" }],
+    "page": 0,
+    "size": 20,
+    "totalElements": 1,
+    "totalPages": 1,
+    "first": true,
+    "last": true,
+    "empty": false
+  }
+}
+```
+
+### Consultar el perfil del proveedor autenticado
+
+`GET /api/v1/providers/me` requiere una sesión con rol `proveedor`; el perfil se resuelve con la identidad de la sesión y no acepta un `userId` por parámetro. Responde `401` sin sesión y `403` si la cuenta no es proveedor. Si el usuario no tiene negocio registrado devuelve `404` con `PROVIDER_NOT_FOUND`.
+
+```json
+{
+  "message": "Proveedor consultado correctamente.",
+  "data": {
+    "providerId": 4,
+    "userId": 31,
+    "name": "Ana Pérez",
+    "email": "ana@example.com",
+    "businessName": "Salón Central",
+    "phone": "3001234567"
+  }
+}
+```
+
+### Listar servicios de un proveedor
+
+`GET /api/v1/providers/{providerId}/services`
+
+Devuelve `data: []` si el proveedor existe pero no tiene servicios; un proveedor inexistente devuelve `404`.
+```json
+{
+  "message": "Servicios consultados correctamente.",
+  "data": [{
+    "id": 12,
+    "nombre": "Corte",
+    "duracionMinutos": 30,
+    "proveedorNombre": "Salón Central"
+  }]
+}
+```
+
+### Consultar horarios libres de un servicio
+
+`GET /api/v1/services/{serviceId}/availability`
+
+La respuesta enumera turnos futuros de los próximos 30 días (incluido el día actual), formados según el día de semana y el intervalo del horario de la agenda del servicio. Sólo incluye agendas activas, turnos cuya duración cabe dentro del bloque y turnos para los que existe al menos un recurso compatible y activo sin reservas activas en un intervalo solapado. Si no quedan turnos libres, devuelve `data: []`; un servicio inexistente devuelve `404`.
+```json
+{
+  "message": "Horarios disponibles consultados correctamente.",
+  "data": [{ "horarioId": 51, "fecha": "2026-11-06", "hora": "08:00:00" }]
+}
+```
+
+La comprobación de disponibilidad considera intervalos por recurso, por lo que un recurso libre puede seguir aceptando reservas aunque otra reserva activa exista en el mismo bloque horario para otro recurso.
+
+## HU: Gestionar recursos del proveedor
+
+Los endpoints requieren sesión de proveedor y token CSRF válido para `POST`, `PUT`, `PATCH` y `DELETE`. El proveedor se obtiene de la sesión; el cuerpo no acepta la identidad del propietario.
+
+| Método | Endpoint | Acción |
+|---|---|---|
+| `POST` | `/api/v1/providers/me/resources` | Crear recurso activo con `{ "nombre": "Consultorio", "tipo": "sala" }` |
+| `GET` | `/api/v1/providers/me/resources` | Listar recursos propios, activos e inactivos |
+| `GET` | `/api/v1/providers/me/resources/{recursoId}` | Consultar un recurso propio |
+| `PUT` | `/api/v1/providers/me/resources/{recursoId}` | Actualizar nombre y tipo |
+| `PATCH` | `/api/v1/providers/me/resources/{recursoId}/estado` | Activar/desactivar con `{ "activo": false }` |
+| `PUT` | `/api/v1/providers/me/resources/{recursoId}/servicios/{servicioId}` | Asociar recurso y servicio propios |
+| `DELETE` | `/api/v1/providers/me/resources/{recursoId}/servicios/{servicioId}` | Retirar la asociación sin borrar las entidades |
+
+Las operaciones sobre recursos o servicios de otro proveedor responden `404`. No existe eliminación física: desactivar conserva las filas y reservas históricas. La asignación automática solo considera recursos compatibles activos; si el servicio no tiene ninguno, las nuevas reservas responden `409`. No se requieren tablas ni columnas nuevas para esta funcionalidad; el esquema ya contiene `recurso.activo` y `servicio_recurso`.
+
+## HU: Consultar mis reservas activas
+
+`GET /api/v1/reservations/me/active` requiere una sesión iniciada y devuelve las reservas activas del usuario autenticado, ordenadas por fecha y hora. La identidad proviene de la sesión, no de parámetros enviados por el cliente.
+
+## HU: Ver mis reservas activas
+
+Endpoint: `GET /api/v1/reservations/me/active` (requiere una sesión autenticada).
+
+La identidad se obtiene de la sesión; no se acepta un identificador de usuario para filtrar la consulta. La respuesta es un arreglo ordenado por fecha y hora ascendente, limitado a reservas con estado `activa`. Si no hay resultados responde `200 OK` con `[]`.
+
+```json
+[
+  {
+    "id": 15,
+    "serviceName": null,
+    "date": "2026-11-10",
+    "startTime": "09:00:00",
+    "endTime": null,
+    "status": "activa"
+  }
+]
+```
+
+**Limitación pendiente de una futura HU de modelo:** `Reserva` no tiene una relación con `Servicio`, y el modelo no determina la hora final de una reserva a partir de su hora de inicio. Por ello, `serviceName` y `endTime` se incluyen en el contrato como `null`; no se fabrican valores. Para completarlos se requiere agregar y migrar una relación persistente entre la reserva y el servicio y definir cómo calcular la duración del turno. No se modificaron entidades ni esquema en esta HU.
+
 ## Estructura del repositorio
 
 ```
@@ -153,7 +314,8 @@ plataforma-reservas/
         │   ├── java/com/udea/reservas/plataformareservas/
         │   │   ├── usuarios/       (model, repository)
         │   │   ├── proveedores/    (model)
-        │   │   ├── recursos/      (model)
+        │   │   ├── servicios/      (model, repository, service, controller, dto)
+        │   │   ├── recursos/       (model, repository, service, controller, dto)
         │   │   ├── agendas/        (model: Agenda, HorarioDisponible — repository, service, controller, dto, exception)
         │   │   └── reservas/       (model, repository, service, controller, dto, exception)
         │   └── resources/
@@ -216,7 +378,7 @@ Los errores técnicos (JSON malformado, parámetro con tipo inválido, ruta inex
 
 ```bash
 cd backend
-./mvnw test     # pruebas unitarias (JUnit, Mockito, AssertJ, MockMvc) con el patrón AAA
+./mvnw test     # unitarias y carga del contexto con PostgreSQL en Testcontainers (requiere Docker)
 ./mvnw verify   # unitarias + aceptación (Cucumber) + regla de cobertura de JaCoCo
 ```
 

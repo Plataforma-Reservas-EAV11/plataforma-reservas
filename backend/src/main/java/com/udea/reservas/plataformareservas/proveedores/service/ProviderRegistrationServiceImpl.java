@@ -76,4 +76,27 @@ public class ProviderRegistrationServiceImpl implements ProviderRegistrationServ
             savedProvider.getTelefono()
         );
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProviderRegistrationResponse getByUserId(Integer usuarioId) {
+        Proveedor proveedor = proveedorRepository.findAllByUsuario_Id(usuarioId)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new BusinessRuleException(
+                        "PROVIDER_NOT_FOUND",
+                        "El usuario autenticado no tiene un negocio registrado.",
+                        HttpStatus.NOT_FOUND.value()
+                ));
+
+        User usuario = proveedor.getUsuario();
+        return new ProviderRegistrationResponse(
+                proveedor.getId(),
+                usuario.getId(),
+                usuario.getName(),
+                usuario.getEmail(),
+                proveedor.getNombreNegocio(),
+                proveedor.getTelefono()
+        );
+    }
 }

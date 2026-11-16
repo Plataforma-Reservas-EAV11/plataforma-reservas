@@ -83,15 +83,16 @@ class SecurityConfigurationTest {
                 events::add
             );
 
+        UsernamePasswordAuthenticationToken authenticationRequest =
+            UsernamePasswordAuthenticationToken.unauthenticated(
+                "ana@example.com",
+                "incorrecta"
+            );
+
         // Act
         assertThrows(
             BadCredentialsException.class,
-            () -> authenticationManager.authenticate(
-                UsernamePasswordAuthenticationToken.unauthenticated(
-                    "ana@example.com",
-                    "incorrecta"
-                )
-            )
+            () -> authenticationManager.authenticate(authenticationRequest)
         );
 
         // Assert
@@ -119,15 +120,16 @@ class SecurityConfigurationTest {
                 events::add
             );
 
+        UsernamePasswordAuthenticationToken authenticationRequest =
+            UsernamePasswordAuthenticationToken.unauthenticated(
+                "ana@example.com",
+                "secret"
+            );
+
         // Act
         assertThrows(
             LockedException.class,
-            () -> authenticationManager.authenticate(
-                UsernamePasswordAuthenticationToken.unauthenticated(
-                    "ana@example.com",
-                    "secret"
-                )
-            )
+            () -> authenticationManager.authenticate(authenticationRequest)
         );
 
         // Assert: una cuenta bloqueada no cuenta como contraseña incorrecta

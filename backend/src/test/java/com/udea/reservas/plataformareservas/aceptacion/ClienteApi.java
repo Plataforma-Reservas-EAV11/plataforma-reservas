@@ -95,6 +95,25 @@ public class ClienteApi {
         return enviar(sesionActual, construirPost(sesionActual, ruta, cuerpo));
     }
 
+    public HttpResponse<String> putJson(String ruta, Object cuerpo) {
+        return enviar(sesionActual, construirJson(sesionActual, ruta, "PUT", cuerpo));
+    }
+
+    public HttpResponse<String> patchJson(String ruta, Object cuerpo) {
+        return enviar(sesionActual, construirJson(sesionActual, ruta, "PATCH", cuerpo));
+    }
+
+    public HttpResponse<String> postJsonSinCsrf(String ruta, Object cuerpo) {
+        String json = cuerpo instanceof String texto
+            ? texto
+            : objectMapper.writeValueAsString(cuerpo);
+        HttpRequest request = peticion(ruta)
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(json))
+            .build();
+        return enviar(sesionActual, request);
+    }
+
     /**
      * Envía varias solicitudes POST que salen exactamente al mismo tiempo, cada una
      * con la sesión indicada, para reproducir la condición de carrera de dos
@@ -111,7 +130,7 @@ public class ClienteApi {
                     return enviar(sesion, peticion);
                 }, hilos))
                 .toList();
-            return envios.stream().map(CompletableFuture::join).toList();
+            return envios.stream().map(envio -> envio.join()).toList();
         }
     }
 
@@ -128,10 +147,14 @@ public class ClienteApi {
     }
 
     private HttpRequest construirPost(Sesion sesion, String ruta, Object cuerpo) {
+        return construirJson(sesion, ruta, "POST", cuerpo);
+    }
+
+    private HttpRequest construirJson(Sesion sesion, String ruta, String metodo, Object cuerpo) {
         String json = cuerpo instanceof String texto ? texto : objectMapper.writeValueAsString(cuerpo);
         HttpRequest.Builder builder = peticion(ruta)
             .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofString(json));
+            .method(metodo, HttpRequest.BodyPublishers.ofString(json));
         agregarCsrf(sesion, builder);
         return builder.build();
     }

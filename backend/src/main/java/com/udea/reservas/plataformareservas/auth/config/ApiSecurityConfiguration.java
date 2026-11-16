@@ -8,10 +8,10 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.context.SecurityContextRepository;
 
 /**
- * DEF-01: reservas y agendas solo se pueden usar con la sesión creada por
- * {@code POST /api/v1/auth/login}. La identidad sale de esa sesión (los
- * controladores reciben el {@code UserPrincipal}), nunca del cuerpo ni de la URL.
- * Sin sesión responde 401; una sesión sin token CSRF válido en POST/DELETE, 403.
+ * Endpoints de reservas y agendas protegidos por sesión (DEF-01). La creación
+ * de servicios y recursos requiere además la autoridad ROLE_PROVEEDOR. La
+ * identidad sale de la sesión, nunca del cuerpo ni de la URL. Sin sesión
+ * responde 401; una escritura sin token CSRF válido responde 403.
  */
 @Configuration
 public class ApiSecurityConfiguration {
@@ -28,15 +28,36 @@ public class ApiSecurityConfiguration {
                 "/api/reservas",
                 "/api/reservas/**",
                 "/api/agendas",
-                "/api/agendas/**"
+                "/api/agendas/**",
+                "/api/v1/providers/me/services",
+                "/api/v1/providers/me/services/**",
+                "/api/v1/providers",
+                "/api/v1/providers/*/services",
+                "/api/v1/services/*/availability",
+                "/api/v1/providers/me",
+                "/api/v1/providers/me/resources",
+                "/api/v1/providers/me/resources/**",
+                "/api/v1/reservations/me/active"
             )
-            .authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated());
+            .authorizeHttpRequests(authorize ->
+                authorize
+                    .requestMatchers(
+                        "/api/v1/providers/me",
+                        "/api/v1/providers/me/services",
+                        "/api/v1/providers/me/services/**",
+                        "/api/v1/providers/me/resources",
+                        "/api/v1/providers/me/resources/**"
+                    )
+                    .hasRole("PROVEEDOR")
+                    .anyRequest()
+                    .authenticated()
+            );
 
         return SecurityChains.build(
             http,
             securityContextRepository,
             errorHandler,
-            SecurityChains::isUnsafeMethodWithSession
+            SecurityChains.unauthenticatedAs401(errorHandler)
         );
     }
 }

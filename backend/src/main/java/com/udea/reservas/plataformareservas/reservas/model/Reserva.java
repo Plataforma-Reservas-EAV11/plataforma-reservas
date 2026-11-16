@@ -1,6 +1,8 @@
 package com.udea.reservas.plataformareservas.reservas.model;
 
 import com.udea.reservas.plataformareservas.agendas.model.HorarioDisponible;
+import com.udea.reservas.plataformareservas.recursos.model.Recurso;
+import com.udea.reservas.plataformareservas.servicios.model.Servicio;
 import com.udea.reservas.plataformareservas.usuarios.model.User;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -34,11 +36,22 @@ public class Reserva {
     @JoinColumn(name = "horario_id", nullable = false)
     private HorarioDisponible horario;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "servicio_id")
+    private Servicio servicio;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recurso_id")
+    private Recurso recurso;
+
     @Column(nullable = false)
     private LocalDate fecha;
 
     @Column(nullable = false)
     private LocalTime hora;
+
+    @Column(name = "hora_fin")
+    private LocalTime horaFin;
 
     @Column(nullable = false, length = 20)
     @Builder.Default

@@ -32,6 +32,52 @@ Característica: Crear una reserva
     Entonces la respuesta tiene el código HTTP 409
     Y el horario tiene 1 reserva activa en esa fecha
 
+  @positivo @CP-RES-10 @P1
+  Escenario: El mismo recurso admite intervalos que solo se tocan
+    Dado que "Ana" tiene una reserva activa en ese horario a las "09:00:00"
+    Cuando "Luis" reserva ese horario a las "09:30:00"
+    Entonces la respuesta tiene el código HTTP 201
+    Y el horario tiene 2 reservas activas en esa fecha
+
+  @excepcional @CP-RES-11 @P1
+  Escenario: El mismo recurso rechaza intervalos que se solapan parcialmente
+    Dado que "Ana" tiene una reserva activa en ese horario a las "09:00:00"
+    Cuando "Luis" reserva ese horario a las "09:15:00"
+    Entonces la respuesta tiene el código HTTP 409
+    Y el horario tiene 1 reserva activa en esa fecha
+
+  @excepcional @CP-RES-12 @P1
+  Escenario: Un recurso no se solapa entre agendas de servicios diferentes
+    Dado que "Ana" tiene una reserva activa en ese horario a las "09:00:00"
+    Y existe otro servicio con agenda que usa el mismo recurso
+    Cuando "Luis" reserva el otro servicio a las "09:15:00"
+    Entonces la respuesta tiene el código HTTP 409
+    Y el horario tiene 1 reserva activa en esa fecha
+
+  @excepcional @CP-RES-13 @P1
+  Escenario: Un servicio sin recursos compatibles no acepta reservas
+    Y existe un servicio sin recursos compatibles
+    Cuando "Ana" reserva el servicio sin recursos a las "09:00:00"
+    Entonces la respuesta tiene el código HTTP 409
+    Y el mensaje de la respuesta es "El servicio aún no tiene recursos disponibles para reservar."
+
+  @positivo @CP-RES-08 @P1
+  Escenario: Dos reservas del mismo horario usan recursos diferentes
+    Y existe un segundo recurso compatible
+    Cuando "Ana" reserva ese servicio a las "09:00:00"
+    Y "Luis" reserva ese servicio a las "09:00:00"
+    Entonces la respuesta tiene el código HTTP 201
+    Y ambas reservas usan recursos diferentes
+    Y el horario tiene 2 reservas activas en esa fecha
+
+  @positivo @CP-RES-14 @P1 @DEF-02
+  Escenario: Dos solicitudes simultáneas obtienen recursos diferentes
+    Y existe un segundo recurso compatible
+    Cuando "Ana" y "Luis" reservan ese horario al mismo tiempo a las "09:00:00"
+    Entonces una solicitud responde 201 y la otra responde 201
+    Y el horario tiene 2 reservas activas en esa fecha
+    Y las reservas activas usan 2 recursos diferentes
+
   @excepcional @CP-13 @RSK-01 @P1 @DEF-02
   Escenario: Dos usuarios reservan el mismo horario al mismo tiempo
     Cuando "Ana" y "Luis" reservan ese horario al mismo tiempo a las "09:00:00"
@@ -65,7 +111,13 @@ Característica: Crear una reserva
     Ejemplos:
       | hora     |
       | 08:00:00 |
-      | 11:59:00 |
+      | 11:30:00 |
+
+  @excepcional @CP-RES-09 @P2
+  Escenario: La duración del servicio excede el bloque disponible
+    Cuando "Ana" reserva ese horario a las "11:45:00"
+    Entonces la respuesta tiene el código HTTP 400
+    Y el mensaje de la respuesta es "La duración del servicio excede el horario disponible."
 
   @excepcional @CP-RES-07 @RSK-06 @P2 @DEF-03
   Escenario: Fecha que no corresponde al día de la semana del bloque
@@ -88,10 +140,10 @@ Característica: Crear una reserva
     Y el mensaje de la respuesta es "El usuario no existe."
 
   @excepcional @CP-RES-06 @P3
-  Escenario: Horario inexistente
-    Cuando "Ana" reserva el horario inexistente 9999 a las "09:00:00"
+  Escenario: Servicio inexistente
+    Cuando "Ana" reserva el servicio inexistente 9999 a las "09:00:00"
     Entonces la respuesta tiene el código HTTP 404
-    Y el mensaje de la respuesta es "El horario no existe."
+    Y el mensaje de la respuesta es "El servicio no existe."
 
   # DEF-01 corregido: reservar exige sesión iniciada.
   @excepcional @CP-19 @RSK-01 @P1 @DEF-01
@@ -105,5 +157,5 @@ Característica: Crear una reserva
   Escenario: Solicitud sin horario seleccionado ni datos obligatorios
     Cuando envío una solicitud de reserva sin datos
     Entonces la respuesta tiene el código HTTP 400
-    Y la respuesta indica un error en el campo "horarioId"
+    Y la respuesta indica un error en el campo "servicioId"
     Y la respuesta indica un error en el campo "fecha"
