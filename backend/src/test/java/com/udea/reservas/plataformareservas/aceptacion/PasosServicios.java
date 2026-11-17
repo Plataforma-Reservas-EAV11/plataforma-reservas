@@ -96,15 +96,18 @@ public class PasosServicios {
     public void proveedorOfreceServicio(String proveedor, String servicio) {
         Integer proveedorId = proveedoresPorNombre.get(proveedor);
         if (proveedorId == null) {
-            Integer usuarioId = datos.crearProveedor(
+            Integer nuevoUsuarioId = datos.crearProveedor(
                 proveedor,
                 proveedor.toLowerCase().replace(' ', '-') + "@test.com"
             );
-            proveedorId = datos.proveedorDeUsuario(usuarioId);
+            proveedorId = datos.proveedorDeUsuario(nuevoUsuarioId);
             proveedoresPorNombre.put(proveedor, proveedorId);
         }
-        Integer usuarioId = datos.usuarioDeProveedor(proveedorId);
-        serviciosPorNombre.put(servicio, datos.crearServicioDeUsuario(usuarioId, servicio));
+        Integer usuarioProveedorId = datos.usuarioDeProveedor(proveedorId);
+        serviciosPorNombre.put(
+            servicio,
+            datos.crearServicioDeUsuario(usuarioProveedorId, servicio)
+        );
     }
 
     @Dado("que el servicio {string} tiene horarios habilitados")
@@ -278,11 +281,16 @@ public class PasosServicios {
 
     private String mensajeRespuesta() {
         JsonNode respuesta = api.ultimoJson();
-        JsonNode mensaje = respuesta.has("message")
+        assertThat(
+            respuesta.has("message")
+                ? respuesta.get("message")
+                : respuesta.get("mensaje")
+        )
+            .as("Mensaje de respuesta")
+            .isNotNull();
+        return (respuesta.has("message")
             ? respuesta.get("message")
-            : respuesta.get("mensaje");
-        assertThat(mensaje).as("Mensaje de respuesta").isNotNull();
-        return mensaje.asString();
+            : respuesta.get("mensaje")).asString();
     }
 
     @Y("el mensaje indica que el campo {string} es obligatorio")
@@ -537,7 +545,7 @@ public class PasosServicios {
 
     @Y("existen {int} servicios guardados")
     public void existenServiciosGuardados(int total) {
-        assertThat(datos.contarServiciosDeUsuario(usuarioId == null ? -1 : usuarioId))
-            .isEqualTo(total);
+        int idUsuario = usuarioId == null ? -1 : usuarioId;
+        assertThat(datos.contarServiciosDeUsuario(idUsuario)).isEqualTo(total);
     }
 }
