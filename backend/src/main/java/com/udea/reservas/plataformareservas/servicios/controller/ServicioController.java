@@ -4,13 +4,16 @@ import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
 import com.udea.reservas.plataformareservas.common.ApiSuccessResponse;
 import com.udea.reservas.plataformareservas.servicios.dto.CrearServicioRequest;
 import com.udea.reservas.plataformareservas.servicios.dto.ServicioResponse;
+import com.udea.reservas.plataformareservas.servicios.dto.ServicioResumenResponse;
 import com.udea.reservas.plataformareservas.servicios.service.ServicioService;
 import jakarta.validation.Valid;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,6 +35,17 @@ public class ServicioController {
         ServicioResponse response = servicioService.crearServicio(usuario.getId(), request);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiSuccessResponse<>("Servicio creado exitosamente.", response));
+    }
+
+    @GetMapping
+    public ResponseEntity<ApiSuccessResponse<List<ServicioResumenResponse>>> listarServicios(
+        @AuthenticationPrincipal UserPrincipal usuario
+    ) {
+        List<ServicioResumenResponse> servicios = servicioService.listarServicios(usuario.getId());
+        String mensaje = servicios.isEmpty()
+            ? "Aún no tienes servicios registrados."
+            : "Servicios consultados exitosamente.";
+        return ResponseEntity.ok(new ApiSuccessResponse<>(mensaje, servicios));
     }
 
     @DeleteMapping("/{servicioId}")

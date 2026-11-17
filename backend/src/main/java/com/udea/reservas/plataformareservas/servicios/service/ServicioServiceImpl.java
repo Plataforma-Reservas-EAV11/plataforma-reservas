@@ -10,6 +10,7 @@ import com.udea.reservas.plataformareservas.recursos.repository.RecursoRepositor
 import com.udea.reservas.plataformareservas.reservas.repository.IReservaRepository;
 import com.udea.reservas.plataformareservas.servicios.dto.CrearServicioRequest;
 import com.udea.reservas.plataformareservas.servicios.dto.ServicioResponse;
+import com.udea.reservas.plataformareservas.servicios.dto.ServicioResumenResponse;
 import com.udea.reservas.plataformareservas.servicios.model.Servicio;
 import com.udea.reservas.plataformareservas.servicios.repository.IServicioRepository;
 import java.util.List;
@@ -133,6 +134,17 @@ public class ServicioServiceImpl implements ServicioService {
         }
         servicio.setEliminado(true);
         servicioRepository.save(servicio);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ServicioResumenResponse> listarServicios(Integer usuarioId) {
+        Proveedor proveedor = obtenerProveedor(usuarioId);
+        return servicioRepository
+            .findAllByProveedor_IdOrderByNombreAscIdAsc(proveedor.getId())
+            .stream()
+            .map(ServicioResumenResponse::fromEntity)
+            .toList();
     }
 
     private Proveedor obtenerProveedor(Integer usuarioId) {

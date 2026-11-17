@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.udea.reservas.plataformareservas.servicios.dto.ServicioResumenResponse;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 import com.udea.reservas.plataformareservas.TestAuthentication;
 import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
@@ -264,5 +266,55 @@ class ServicioControllerTest {
             .andExpect(jsonPath("$.message").value("El servicio tiene reservas activas."))
             .andExpect(jsonPath("$.details").isEmpty())
             .andExpect(jsonPath("$.traceId").isNotEmpty());
+    }
+
+    @Test
+    @DisplayName("Lista los servicios del usuario autenticado")
+    void listarServiciosRetornaLosServiciosDelProveedor() throws Exception {
+        when(servicioService.listarServicios(7)).thenReturn(
+            List.of(
+                new ServicioResumenResponse(41, "Corte", 30, "activo"),
+                new ServicioResumenResponse(42, "Tinte", 90, "activo")
+            )
+        );
+
+        mockMvc.perform(get(RUTA))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Servicios consultados exitosamente."))
+            .andExpect(jsonPath("$.data.length()").value(2))
+            .andExpect(jsonPath("$.data[0].nombre").value("Corte"))
+            .andExpect(jsonPath("$.data[0].duracionMinutos").value(30))
+            .andExpect(jsonPath("$.data[0].estado").value("activo"))
+            .andExpect(jsonPath("$.data[1].nombre").value("Tinte"));
+
+        verify(servicioService).listarServicios(7);
+    }
+
+    @Test
+    @DisplayName("Sin servicios responde 200 con un mensaje y lista vacía")
+    void listarServiciosSinServiciosIndicaQueNoHay() throws Exception {
+        when(servicioService.listarServicios(7)).thenReturn(List.of());
+
+        mockMvc.perform(get(RUTA))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Aún no tienes servicios registrados."))
+            .andExpect(jsonPath("$.data").isArray())
+            .andExpect(jsonPath("$.data").isEmpty());
+    }
+
+    @Test
+    @DisplayName("Propaga el error cuando el usuario no tiene perfil de proveedor")
+    void listarServiciosSinPerfilResponde404() throws Exception {
+        when(servicioService.listarServicios(7)).thenThrow(
+            new BusinessRuleException(
+                "PROVIDER_PROFILE_NOT_FOUND",
+                "El usuario no tiene perfil de proveedor.",
+                HttpStatus.NOT_FOUND.value()
+            )
+        );
+
+        mockMvc.perform(get(RUTA))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.errorCode").value("PROVIDER_PROFILE_NOT_FOUND"));
     }
 }

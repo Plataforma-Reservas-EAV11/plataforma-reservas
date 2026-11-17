@@ -171,6 +171,8 @@ Endpoint: `POST /api/v1/providers/me/services` (requiere sesión de proveedor y 
 
 ### Eliminar un servicio
 
+`GET /api/v1/providers/me/services` (HU-12, "Ver mis servicios") requiere sesión de proveedor y devuelve `200` con los servicios propios no eliminados, ordenados por nombre: `{ "message": "...", "data": [{ "id", "nombre", "duracionMinutos", "estado" }] }`. El modelo no guarda un estado propio (solo eliminación lógica), por lo que `estado` es siempre `"activo"`. Si el proveedor no tiene servicios, devuelve `data: []` y el mensaje `"Aún no tienes servicios registrados."`. Sin sesión responde `401`, con rol de cliente `403` y sin perfil de proveedor `404` (`PROVIDER_PROFILE_NOT_FOUND`).
+
 `DELETE /api/v1/providers/me/services/{servicioId}` requiere sesión de proveedor y token CSRF. Elimina lógicamente un servicio propio sin reservas activas y conserva sus datos y reservas históricas. Un servicio eliminado no aparece en el catálogo ni admite nuevas reservas. Devuelve `200` al eliminar, `404` para servicios ajenos, inexistentes o ya eliminados, y `409` (`SERVICE_HAS_ACTIVE_RESERVATIONS`) si existen reservas activas.
 
 En bases existentes, ejecutar previamente `backend/src/main/resources/db/migraciones/2026-11-06-eliminacion-logica-servicio.sql`, además de aplicar las migraciones de esquema pendientes indicadas arriba.

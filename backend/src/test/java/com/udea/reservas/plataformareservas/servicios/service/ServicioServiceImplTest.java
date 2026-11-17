@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import com.udea.reservas.plataformareservas.servicios.dto.ServicioResumenResponse;
 
 import com.udea.reservas.plataformareservas.common.BusinessRuleException;
 import com.udea.reservas.plataformareservas.agendas.model.Agenda;
@@ -343,5 +344,49 @@ class ServicioServiceImplTest {
             });
         verify(servicioRepository, never()).save(any(Servicio.class));
         verify(agendaRepository, never()).save(any(Agenda.class));
+    }
+
+    @Test
+    @DisplayName("Lista los servicios del proveedor con nombre, duración y estado")
+    void listarServiciosDevuelveLosServiciosDelProveedor() {
+        Proveedor proveedor = Proveedor.builder().id(12).build();
+        Servicio corte = Servicio.builder().id(41).proveedor(proveedor).nombre("Corte").duracionMinutos(30).build();
+        Servicio tinte = Servicio.builder().id(42).proveedor(proveedor).nombre("Tinte").duracionMinutos(90).build();
+        when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
+        when(servicioRepository.findAllByProveedor_IdOrderByNombreAscIdAsc(12))
+            .thenReturn(List.of(corte, tinte));
+
+        List<ServicioResumenResponse> servicios = servicioService.listarServicios(7);
+
+        assertThat(servicios).containsExactly(
+            new ServicioResumenResponse(41, "Corte", 30, "activo"),
+            new ServicioResumenResponse(42, "Tinte", 90, "activo")
+        );
+    }
+
+    @Test
+    @DisplayName("Devuelve una lista vacía cuando el proveedor no tiene servicios")
+    void listarServiciosSinServiciosDevuelveListaVacia() {
+        Proveedor proveedor = Proveedor.builder().id(12).build();
+        when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
+        when(servicioRepository.findAllByProveedor_IdOrderByNombreAscIdAsc(12)).thenReturn(List.of());
+
+        assertThat(servicioService.listarServicios(7)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Listar sin perfil de proveedor responde 404 sin consultar servicios")
+    void listarServiciosSinPerfilProveedorFalla() {
+        when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of());
+
+        assertThatThrownBy(() -> servicioService.listarServicios(7))
+            .isInstanceOf(BusinessRuleException.class)
+            .satisfies(exception -> {
+                BusinessRuleException businessException = (BusinessRuleException) exception;
+                assertThat(businessException.getErrorCode()).isEqualTo("PROVIDER_PROFILE_NOT_FOUND");
+                assertThat(businessException.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
+            });
+
+        verify(servicioRepository, never()).findAllByProveedor_IdOrderByNombreAscIdAsc(any());
     }
 }

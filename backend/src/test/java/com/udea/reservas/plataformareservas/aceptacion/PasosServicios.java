@@ -68,6 +68,44 @@ public class PasosServicios {
         api.delete(RUTA_SERVICIOS + "/" + servicioId);
     }
 
+    @Cuando("consulto mis servicios")
+    public void consultoMisServicios() {
+        api.get(RUTA_SERVICIOS);
+    }
+
+    @Cuando("intento consultar mis servicios sin iniciar sesión")
+    public void consultoMisServiciosSinSesion() {
+        api.sinSesion();
+        consultoMisServicios();
+    }
+
+    @Entonces("la lista contiene {int} servicios")
+    public void listaContieneServicios(int cantidad) {
+        assertThat(api.ultimoJson().get("data")).hasSize(cantidad);
+    }
+
+    @Y("el servicio {string} aparece en la lista con duración {int} minutos y estado {string}")
+    public void servicioApareceEnLista(String nombre, int duracion, String estado) {
+        JsonNode servicio = buscarEnLista(nombre);
+        assertThat(servicio).as("Servicio '%s' en la lista", nombre).isNotNull();
+        assertThat(servicio.get("duracionMinutos").asInt()).isEqualTo(duracion);
+        assertThat(servicio.get("estado").asString()).isEqualTo(estado);
+    }
+
+    @Y("el servicio {string} no aparece en la lista")
+    public void servicioNoApareceEnLista(String nombre) {
+        assertThat(buscarEnLista(nombre)).as("Servicio '%s' en la lista", nombre).isNull();
+    }
+
+    private JsonNode buscarEnLista(String nombre) {
+        for (JsonNode servicio : api.ultimoJson().get("data")) {
+            if (nombre.equals(servicio.get("nombre").asString())) {
+                return servicio;
+            }
+        }
+        return null;
+    }
+
     @Cuando("intento eliminar el servicio {string} sin iniciar sesión")
     public void eliminoServicioSinSesion(String nombre) {
         api.sinSesion();

@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.udea.reservas.plataformareservas.servicios.dto.ServicioResumenResponse;
 
 import com.udea.reservas.plataformareservas.agendas.controller.HorarioDisponibleController;
 import com.udea.reservas.plataformareservas.agendas.dto.CrearHorarioRequest;
@@ -567,5 +568,40 @@ class ApiSecurityFilterChainTest {
     private JsonNode tokenCsrf(MockHttpSession session) throws Exception {
         MvcResult result = mockMvc.perform(get("/api/v1/auth/csrf").session(session)).andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString());
+    }
+
+    @Test
+    @DisplayName("Listar servicios sin sesión responde 401")
+    void listarServiciosSinSesionResponde401() throws Exception {
+        mockMvc.perform(get("/api/v1/providers/me/services"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.errorCode").value("UNAUTHENTICATED"));
+
+        verify(servicioService, never()).listarServicios(any());
+    }
+
+    @Test
+    @DisplayName("Un usuario cliente no puede listar servicios de proveedor")
+    void listarServiciosUsuarioNoProveedorResponde403() throws Exception {
+        mockMvc.perform(get("/api/v1/providers/me/services").session(sesionAutenticada(7, "usuario")))
+            .andExpect(status().isForbidden());
+
+        verify(servicioService, never()).listarServicios(any());
+    }
+
+    @Test
+    @DisplayName("Un proveedor lista sus servicios con la identidad de su sesión")
+    void listarServiciosProveedorAutenticadoResponde200() throws Exception {
+        when(servicioService.listarServicios(7)).thenReturn(
+            List.of(new ServicioResumenResponse(41, "Corte", 30, "activo"))
+        );
+
+        mockMvc.perform(get("/api/v1/providers/me/services").session(sesionAutenticada(7, "proveedor")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.data[0].nombre").value("Corte"))
+            .andExpect(jsonPath("$.data[0].duracionMinutos").value(30))
+            .andExpect(jsonPath("$.data[0].estado").value("activo"));
+
+        verify(servicioService).listarServicios(7);
     }
 }
