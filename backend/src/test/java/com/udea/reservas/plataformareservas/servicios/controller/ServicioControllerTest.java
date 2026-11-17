@@ -307,9 +307,9 @@ class ServicioControllerTest {
     void listarServiciosSinPerfilResponde404() throws Exception {
         when(servicioService.listarServicios(7)).thenThrow(
             new BusinessRuleException(
-                HttpStatus.NOT_FOUND,
                 "PROVIDER_PROFILE_NOT_FOUND",
-                "El usuario no tiene perfil de proveedor."
+                "El usuario no tiene perfil de proveedor.",
+                HttpStatus.NOT_FOUND.value()
             )
         );
 
