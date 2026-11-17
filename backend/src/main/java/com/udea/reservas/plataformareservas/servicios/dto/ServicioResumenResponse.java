@@ -4,7 +4,7 @@ import com.udea.reservas.plataformareservas.servicios.model.Servicio;
 
 /**
  * Fila del listado "Mis servicios" del proveedor. El modelo no guarda un estado
- * propio del servicio: los eliminados no se listan, así que todo servicio que
+ * propio del servicio: los eliminados no se listan, así que cualquier servicio que
  * aparece aquí está "activo".
  */
 public record ServicioResumenResponse(
