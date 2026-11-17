@@ -84,6 +84,22 @@ public class DatosPrueba {
         );
     }
 
+    public Integer proveedorDeUsuario(Integer usuarioId) {
+        return jdbc.queryForObject(
+            "SELECT id FROM proveedor WHERE usuario_id = ?",
+            Integer.class,
+            usuarioId
+        );
+    }
+
+    public Integer usuarioDeProveedor(Integer proveedorId) {
+        return jdbc.queryForObject(
+            "SELECT usuario_id FROM proveedor WHERE id = ?",
+            Integer.class,
+            proveedorId
+        );
+    }
+
     public int contarServiciosDeUsuario(Integer usuarioId) {
         return jdbc.queryForObject(
             "SELECT count(*) FROM servicio s JOIN proveedor p ON p.id = s.proveedor_id WHERE p.usuario_id = ?",
@@ -106,6 +122,52 @@ public class DatosPrueba {
             Integer.class,
             nombre,
             usuarioId
+        );
+    }
+
+    public void crearAgendaYHorarioParaServicio(Integer idServicio) {
+        servicioId = idServicio;
+        proveedorId = jdbc.queryForObject(
+            "SELECT proveedor_id FROM servicio WHERE id = ?",
+            Integer.class,
+            idServicio
+        );
+        recursoId = jdbc.queryForObject(
+            "INSERT INTO recurso (proveedor_id, nombre, tipo, activo) "
+                + "VALUES (?, 'Recurso catálogo', 'sala', true) RETURNING id",
+            Integer.class,
+            proveedorId
+        );
+        jdbc.update(
+            "INSERT INTO servicio_recurso (servicio_id, recurso_id) VALUES (?, ?)",
+            idServicio,
+            recursoId
+        );
+        agendaId = jdbc.queryForObject(
+            "INSERT INTO agenda (proveedor_id, servicio_id, nombre, activa) "
+                + "VALUES (?, ?, 'Agenda catálogo', true) RETURNING id",
+            Integer.class,
+            proveedorId,
+            idServicio
+        );
+        fechaHorario = LocalDate.now(clock).plusDays(7);
+        horarioId = jdbc.queryForObject(
+            "INSERT INTO horario_disponible "
+                + "(agenda_id, dia_semana, hora_inicio, hora_fin, duracion_slot_min) "
+                + "VALUES (?, ?, '08:00', '10:00', 30) RETURNING id",
+            Integer.class,
+            agendaId,
+            fechaHorario.getDayOfWeek().getValue() - 1
+        );
+    }
+
+    public void crearHorarioPasadoParaServicio() {
+        jdbc.update(
+            "INSERT INTO horario_disponible "
+                + "(agenda_id, dia_semana, hora_inicio, hora_fin, duracion_slot_min) "
+                + "VALUES (?, ?, '00:00', '01:00', 30)",
+            agendaId,
+            LocalDate.now(clock).getDayOfWeek().getValue() - 1
         );
     }
 
@@ -370,6 +432,15 @@ public class DatosPrueba {
     }
 
     public Integer crearReserva(String nombreUsuario, LocalTime hora, String estado) {
+        return crearReservaEnFecha(nombreUsuario, fechaHorario, hora, estado);
+    }
+
+    public Integer crearReservaEnFecha(
+        String nombreUsuario,
+        LocalDate fecha,
+        LocalTime hora,
+        String estado
+    ) {
         Integer id = jdbc.queryForObject(
             "INSERT INTO reserva (usuario_id, horario_id, servicio_id, recurso_id, fecha, hora, hora_fin, estado) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id",
             Integer.class,
@@ -377,7 +448,7 @@ public class DatosPrueba {
             horarioId,
             servicioId,
             recursoId,
-            fechaHorario,
+            fecha,
             hora,
             hora.plusMinutes(30),
             estado

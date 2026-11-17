@@ -6,6 +6,9 @@ import io.cucumber.java.es.Cuando;
 import io.cucumber.java.es.Dado;
 import io.cucumber.java.es.Entonces;
 import io.cucumber.java.es.Y;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,10 +33,12 @@ public class PasosServicios {
     private Integer usuarioId;
     private Integer recursoId;
     private final Map<String, Integer> serviciosPorNombre = new HashMap<>();
+    private final Map<String, Integer> proveedoresPorNombre = new HashMap<>();
 
     @Dado("que existe el proveedor {string} con correo {string}")
     public void existeProveedor(String nombre, String email) {
         usuarioId = datos.crearProveedor(nombre, email);
+        proveedoresPorNombre.put(nombre, datos.proveedorDeUsuario(usuarioId));
         api.iniciarSesion(nombre, email, DatosPrueba.CONTRASENA_POR_DEFECTO);
     }
 
@@ -50,7 +55,82 @@ public class PasosServicios {
     @Dado("que existe otro proveedor {string} con correo {string} que tiene el servicio {string}")
     public void otroProveedorTieneServicio(String proveedor, String email, String servicio) {
         Integer otroUsuarioId = datos.crearProveedor(proveedor, email);
+        proveedoresPorNombre.put(proveedor, datos.proveedorDeUsuario(otroUsuarioId));
         serviciosPorNombre.put(servicio, datos.crearServicioDeUsuario(otroUsuarioId, servicio));
+    }
+
+    @Dado("que estoy autenticado como usuario")
+    public void estoyAutenticadoComoUsuario() {
+        datos.crearUsuario(
+            "Usuario catálogo",
+            "catalogo@test.com",
+            DatosPrueba.CONTRASENA_POR_DEFECTO,
+            "usuario"
+        );
+        api.iniciarSesion(
+            "Usuario catálogo",
+            "catalogo@test.com",
+            DatosPrueba.CONTRASENA_POR_DEFECTO
+        );
+    }
+
+    @Dado("que hay {int} proveedores registrados")
+    public void hayProveedoresRegistrados(int cantidad) {
+        for (int indice = 1; indice <= cantidad; indice++) {
+            String nombre = "Proveedor catálogo " + indice;
+            Integer id = datos.crearProveedor(
+                nombre,
+                "catalogo-" + indice + "@test.com"
+            );
+            proveedoresPorNombre.put(nombre, datos.proveedorDeUsuario(id));
+        }
+    }
+
+    @Dado("que el proveedor {string} no tiene servicios registrados")
+    public void proveedorNoTieneServicios(String nombre) {
+        Integer id = datos.crearProveedor(nombre, nombre.toLowerCase().replace(' ', '-') + "@test.com");
+        proveedoresPorNombre.put(nombre, datos.proveedorDeUsuario(id));
+    }
+
+    @Dado("que el proveedor {string} ofrece el servicio {string}")
+    public void proveedorOfreceServicio(String proveedor, String servicio) {
+        Integer proveedorId = proveedoresPorNombre.get(proveedor);
+        if (proveedorId == null) {
+            Integer usuarioId = datos.crearProveedor(
+                proveedor,
+                proveedor.toLowerCase().replace(' ', '-') + "@test.com"
+            );
+            proveedorId = datos.proveedorDeUsuario(usuarioId);
+            proveedoresPorNombre.put(proveedor, proveedorId);
+        }
+        Integer usuarioId = datos.usuarioDeProveedor(proveedorId);
+        serviciosPorNombre.put(servicio, datos.crearServicioDeUsuario(usuarioId, servicio));
+    }
+
+    @Dado("que el servicio {string} tiene horarios habilitados")
+    public void servicioTieneHorariosHabilitados(String servicio) {
+        datos.crearAgendaYHorarioParaServicio(serviciosPorNombre.get(servicio));
+    }
+
+    @Dado("que el servicio {string} tiene un horario que ya pasó")
+    public void servicioTieneHorarioPasado(String servicio) {
+        datos.crearHorarioPasadoParaServicio();
+    }
+
+    @Dado("que uno de los horarios del servicio {string} ya está reservado")
+    public void horarioServicioYaEstaReservado(String servicio) {
+        datos.crearUsuario(
+            "Usuario con reserva",
+            "reserva-catalogo@test.com",
+            DatosPrueba.CONTRASENA_POR_DEFECTO,
+            "usuario"
+        );
+        datos.crearReservaEnFecha(
+            "Usuario con reserva",
+            datos.fechaHorario(),
+            LocalTime.of(8, 0),
+            "activa"
+        );
     }
 
     @Dado("que el servicio {string} tiene una reserva {string}")
@@ -71,6 +151,96 @@ public class PasosServicios {
     @Cuando("consulto mis servicios")
     public void consultoMisServicios() {
         api.get(RUTA_SERVICIOS);
+    }
+
+    @Cuando("accedo a la sección de servicios")
+    public void accedoASeccionDeServicios() {
+        api.get("/api/v1/providers?page=0&size=1");
+    }
+
+    @Cuando("avanzo a la siguiente página de proveedores")
+    public void avanzoSiguientePaginaProveedores() {
+        api.get("/api/v1/providers?page=1&size=1");
+    }
+
+    @Cuando("selecciono el proveedor {string}")
+    public void seleccionoProveedor(String nombre) {
+        api.get("/api/v1/providers/" + proveedoresPorNombre.get(nombre) + "/services");
+    }
+
+    @Cuando("selecciono el servicio {string}")
+    public void seleccionoServicio(String nombre) {
+        api.get("/api/v1/services/" + serviciosPorNombre.get(nombre) + "/availability");
+    }
+
+    @Entonces("veo {int} proveedores en la página")
+    public void veoProveedoresEnPagina(int cantidad) {
+        assertThat(api.ultimoJson().get("data").get("content")).hasSize(cantidad);
+    }
+
+    @Y("la paginación indica que hay más de una página")
+    public void paginacionIndicaMasDeUnaPagina() {
+        assertThat(api.ultimoJson().get("data").get("totalPages").asInt()).isGreaterThan(1);
+    }
+
+    @Y("el proveedor {string} aparece en la lista")
+    public void proveedorApareceEnLista(String nombre) {
+        assertThat(api.ultimoJson().get("data").get("content"))
+            .anyMatch(proveedor -> nombre.equals(proveedor.get("nombre").asString()));
+    }
+
+    @Entonces("veo {int} servicios del proveedor")
+    public void veoServiciosDelProveedor(int cantidad) {
+        assertThat(api.ultimoJson().get("data")).hasSize(cantidad);
+    }
+
+    @Y("la respuesta indica que el proveedor no tiene servicios disponibles")
+    public void respuestaIndicaProveedorSinServicios() {
+        assertThat(mensajeRespuesta())
+            .containsIgnoringCase("no tiene servicios disponibles");
+    }
+
+    @Y("la respuesta indica que no hay proveedores disponibles")
+    public void respuestaIndicaSinProveedores() {
+        assertThat(mensajeRespuesta())
+            .containsIgnoringCase("no hay proveedores disponibles");
+    }
+
+    @Y("el servicio {string} muestra duración {int} minutos y proveedor {string}")
+    public void servicioMuestraDatos(String servicio, int duracion, String proveedor) {
+        JsonNode encontrado = null;
+        for (JsonNode item : api.ultimoJson().get("data")) {
+            if (servicio.equals(item.get("nombre").asString())) {
+                encontrado = item;
+                break;
+            }
+        }
+        if (encontrado == null) {
+            throw new AssertionError("El servicio '" + servicio + "' no aparece en la respuesta");
+        }
+        assertThat(encontrado.get("duracionMinutos").asInt()).isEqualTo(duracion);
+        assertThat(encontrado.get("proveedorNombre").asString()).isEqualTo(proveedor + " negocio");
+    }
+
+    @Entonces("veo horarios futuros y libres del servicio {string}")
+    public void veoHorariosFuturosYLibres(String servicio) {
+        JsonNode horarios = api.ultimoJson().get("data");
+        assertThat(horarios).isNotEmpty();
+        LocalDateTime ahora = LocalDateTime.now();
+        for (JsonNode horario : horarios) {
+            LocalDate fecha = LocalDate.parse(horario.get("fecha").asString());
+            LocalTime hora = LocalTime.parse(horario.get("hora").asString());
+            assertThat(LocalDateTime.of(fecha, hora)).isAfter(ahora);
+            if (fecha.equals(datos.fechaHorario())) {
+                assertThat(hora).isNotEqualTo(LocalTime.of(8, 0));
+            }
+        }
+    }
+
+    @Y("el proveedor {string} no aparece como disponible")
+    public void proveedorNoApareceComoDisponible(String nombre) {
+        assertThat(api.ultimoJson().get("data").get("content"))
+            .noneMatch(proveedor -> nombre.equals(proveedor.get("nombreNegocio").asString()));
     }
 
     @Cuando("intento consultar mis servicios sin iniciar sesión")
@@ -104,6 +274,22 @@ public class PasosServicios {
             }
         }
         return null;
+    }
+
+    private String mensajeRespuesta() {
+        JsonNode respuesta = api.ultimoJson();
+        JsonNode mensaje = respuesta.has("message")
+            ? respuesta.get("message")
+            : respuesta.get("mensaje");
+        assertThat(mensaje).as("Mensaje de respuesta").isNotNull();
+        return mensaje.asString();
+    }
+
+    @Y("el mensaje indica que el campo {string} es obligatorio")
+    public void mensajeIndicaCampoObligatorio(String campo) {
+        assertThat(api.ultimaRespuesta().body())
+            .containsIgnoringCase(campo)
+            .containsIgnoringCase("obligatorio");
     }
 
     @Cuando("intento eliminar el servicio {string} sin iniciar sesión")
@@ -216,6 +402,9 @@ public class PasosServicios {
                 List.of(recursoId)
             )
         );
+        if (api.ultimaRespuesta().statusCode() == 201) {
+            serviciosPorNombre.put(nombre, api.ultimoJson().get("data").get("id").asInt());
+        }
     }
 
     @Cuando("creo un servicio usando ese recurso")
@@ -299,6 +488,25 @@ public class PasosServicios {
         );
     }
 
+    @Cuando("intento crear un servicio dejando el campo {string} sin completar")
+    public void intentoCrearServicioConCampoVacio(String campo) {
+        Map<String, Object> cuerpo = new HashMap<>();
+        cuerpo.put("nombre", "Servicio de prueba");
+        cuerpo.put("descripcion", "Descripción de prueba");
+        cuerpo.put("duracion", 30);
+        cuerpo.put(
+            "recursoIds",
+            recursoId == null ? RECURSOS_DE_RELLENO : List.of(recursoId)
+        );
+
+        if ("nombre".equals(campo) || "descripcion".equals(campo)) {
+            cuerpo.put(campo, " ");
+        } else {
+            cuerpo.remove(campo);
+        }
+        api.postJson(RUTA_SERVICIOS, cuerpo);
+    }
+
     @Entonces("el servicio {string} queda guardado para el proveedor autenticado")
     public void servicioGuardadoParaProveedorAutenticado(String nombre) {
         assertThat(api.ultimoJson().get("data").get("nombre").asString()).isEqualTo(nombre);
@@ -316,6 +524,15 @@ public class PasosServicios {
     @Y("el proveedor autenticado tiene {int} servicios guardados")
     public void proveedorAutenticadoTieneServicios(int total) {
         assertThat(datos.contarServiciosDeUsuario(usuarioId)).isEqualTo(total);
+    }
+
+    @Y("el servicio {string} aparece en el catálogo para los usuarios")
+    public void servicioApareceEnCatalogo(String nombre) {
+        Integer servicioId = serviciosPorNombre.get(nombre);
+        api.get("/api/v1/providers/" + datos.proveedorDeServicio(servicioId) + "/services");
+        assertThat(api.ultimaRespuesta().statusCode()).isEqualTo(200);
+        JsonNode servicios = api.ultimoJson().get("data");
+        assertThat(servicios).anyMatch(servicio -> nombre.equals(servicio.get("nombre").asString()));
     }
 
     @Y("existen {int} servicios guardados")

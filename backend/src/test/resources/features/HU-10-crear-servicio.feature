@@ -11,7 +11,12 @@ Característica: Crear mis servicios
     Y que el proveedor tiene el recurso "Sala de corte"
     Cuando creo un servicio con nombre "Corte", descripción "Corte de cabello", duración 30 minutos
     Entonces la respuesta tiene el código HTTP 201
+    Y el mensaje de la respuesta es "Servicio creado exitosamente."
     Y el servicio "Corte" queda guardado para el proveedor autenticado
+    Cuando consulto mis servicios
+    Entonces la lista contiene 1 servicios
+    Y el servicio "Corte" aparece en la lista con duración 30 minutos y estado "activo"
+    Y el servicio "Corte" aparece en el catálogo para los usuarios
 
   @positivo @P1
   Escenario: Asociar un recurso compatible al crear el servicio
@@ -64,9 +69,18 @@ Característica: Crear mis servicios
     Y existen 0 servicios guardados
 
   @excepcional @P1
-  Escenario: Rechazar datos obligatorios vacíos sin persistir
+  @pendiente
+  Esquema del escenario: Rechazar campos obligatorios vacíos sin persistir
     Dado que existe el proveedor "Proveedor inválido" con correo "proveedor-invalido@test.com"
-    Cuando creo un servicio con campos vacíos
+    Cuando intento crear un servicio dejando el campo "<campo>" sin completar
     Entonces la respuesta tiene el código HTTP 400
     Y el código de error es "VALIDATION_ERROR"
+    Y la respuesta indica un error en el campo "<campo>"
+    Y el mensaje indica que el campo "<campo>" es obligatorio
     Y existen 0 servicios guardados
+
+    Ejemplos:
+      | campo       |
+      | nombre      |
+      | descripcion |
+      | duracion    |
