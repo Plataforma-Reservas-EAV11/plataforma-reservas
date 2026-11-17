@@ -281,16 +281,15 @@ public class PasosServicios {
 
     private String mensajeRespuesta() {
         JsonNode respuesta = api.ultimoJson();
-        assertThat(
-            respuesta.has("message")
-                ? respuesta.get("message")
-                : respuesta.get("mensaje")
-        )
-            .as("Mensaje de respuesta")
-            .isNotNull();
-        return (respuesta.has("message")
-            ? respuesta.get("message")
-            : respuesta.get("mensaje")).asString();
+        assertThat(mensajeDe(respuesta)).as("Mensaje de respuesta").isNotNull();
+        return mensajeDe(respuesta).asString();
+    }
+
+    private JsonNode mensajeDe(JsonNode respuesta) {
+        if (respuesta.has("message")) {
+            return respuesta.get("message");
+        }
+        return respuesta.get("mensaje");
     }
 
     @Y("el mensaje indica que el campo {string} es obligatorio")
@@ -502,10 +501,11 @@ public class PasosServicios {
         cuerpo.put("nombre", "Servicio de prueba");
         cuerpo.put("descripcion", "Descripción de prueba");
         cuerpo.put("duracion", 30);
-        cuerpo.put(
-            "recursoIds",
-            recursoId == null ? RECURSOS_DE_RELLENO : List.of(recursoId)
-        );
+        List<Integer> recursos = RECURSOS_DE_RELLENO;
+        if (recursoId != null) {
+            recursos = List.of(recursoId);
+        }
+        cuerpo.put("recursoIds", recursos);
 
         if ("nombre".equals(campo) || "descripcion".equals(campo)) {
             cuerpo.put(campo, " ");
@@ -545,7 +545,10 @@ public class PasosServicios {
 
     @Y("existen {int} servicios guardados")
     public void existenServiciosGuardados(int total) {
-        int idUsuario = usuarioId == null ? -1 : usuarioId;
+        int idUsuario = -1;
+        if (usuarioId != null) {
+            idUsuario = usuarioId;
+        }
         assertThat(datos.contarServiciosDeUsuario(idUsuario)).isEqualTo(total);
     }
 }

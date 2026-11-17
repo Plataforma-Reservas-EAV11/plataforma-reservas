@@ -69,15 +69,18 @@ public class PasosHistorialReservas {
     public void veoMensajeSinReservas() {
         JsonNode respuesta = api.ultimoJson();
         assertThat(respuesta.isObject()).isTrue();
-        assertThat(
-            respuesta.has("message")
-                ? respuesta.get("message")
-                : respuesta.get("mensaje")
-        )
+        assertThat(mensajeDe(respuesta))
             .as("Mensaje del historial sin reservas")
             .isNotNull()
             .asString()
             .containsIgnoringCase("aún no tengo reservas");
+    }
+
+    private JsonNode mensajeDe(JsonNode respuesta) {
+        if (respuesta.has("message")) {
+            return respuesta.get("message");
+        }
+        return respuesta.get("mensaje");
     }
 
     @Y("el detalle muestra el servicio {string}, la fecha del horario, el horario {string}, el estado {string} y el usuario {string}")

@@ -122,15 +122,18 @@ public class PasosReportes {
     public void reporteIndicaPeriodoSinReservas() {
         JsonNode reporte = api.ultimoJson();
         assertThat(reporte.get("totalReservas").asLong()).isZero();
-        assertThat(
-            reporte.has("message")
-                ? reporte.get("message")
-                : reporte.get("mensaje")
-        )
+        assertThat(mensajeDe(reporte))
             .as("Mensaje del reporte sin reservas")
             .isNotNull()
             .asString()
             .containsIgnoringCase("No hay reservas en el periodo seleccionado");
+    }
+
+    private JsonNode mensajeDe(JsonNode respuesta) {
+        if (respuesta.has("message")) {
+            return respuesta.get("message");
+        }
+        return respuesta.get("mensaje");
     }
 
     @Y("no se genera el reporte")

@@ -53,15 +53,18 @@ public class PasosReservasActivas {
     public void veoMensajeSinReservasActivas() {
         JsonNode respuesta = api.ultimoJson();
         assertThat(respuesta.isObject()).isTrue();
-        assertThat(
-            respuesta.has("message")
-                ? respuesta.get("message")
-                : respuesta.get("mensaje")
-        )
+        assertThat(mensajeDe(respuesta))
             .as("Mensaje de reservas activas vacías")
             .isNotNull()
             .asString()
             .containsIgnoringCase("aún no tengo reservas activas");
+    }
+
+    private JsonNode mensajeDe(JsonNode respuesta) {
+        if (respuesta.has("message")) {
+            return respuesta.get("message");
+        }
+        return respuesta.get("mensaje");
     }
 
     private JsonNode buscarReserva(String hora) {
