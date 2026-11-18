@@ -27,7 +27,7 @@
         <url/>
     </scm>
     <properties>
-        <java.version>25</java.version>
+        <java.version>21</java.version>
         <!-- Versiones parcheadas de dependencias administradas por Spring Boot 4.1.1 (análisis SCA):
              tomcat 11.0.24 tiene CVE-2026-65905, CVE-2026-65182 y CVE-2026-68525 (críticas);
              jackson 3.1.5 tiene CVE-2026-89425, CVE-2026-89407, CVE-2026-91777, CVE-2026-68497,

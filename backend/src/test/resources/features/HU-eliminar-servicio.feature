@@ -1,5 +1,5 @@
 # language: es
- @eliminar-servicio
+@HU-eliminar-servicio
 Característica: Eliminar un servicio
   Como proveedor de servicios
   Quiero eliminar los servicios que ya no deseo ofrecer
@@ -11,9 +11,12 @@ Característica: Eliminar un servicio
     Y que el proveedor tiene el servicio "Corte" registrado
     Cuando elimino el servicio "Corte"
     Entonces la respuesta tiene el código HTTP 200
+    Y el mensaje de la respuesta es "Servicio eliminado exitosamente."
     Y el servicio "Corte" está "eliminado"
     Y el proveedor autenticado tiene 0 servicios activos
     Y el proveedor autenticado tiene 1 servicios guardados
+    Cuando consulto mis servicios
+    Entonces el servicio "Corte" no aparece en la lista
 
   @positivo @P1
   Escenario: Eliminar un servicio con reservas canceladas no modifica las reservas
@@ -35,9 +38,12 @@ Característica: Eliminar un servicio
     Y que el servicio "Corte" tiene una reserva "activa"
     Cuando elimino el servicio "Corte"
     Entonces la respuesta tiene el código HTTP 409
+    Y el mensaje de la respuesta es "El servicio tiene reservas activas."
     Y el código de error es "SERVICE_HAS_ACTIVE_RESERVATIONS"
     Y el servicio "Corte" está "activo"
     Y la reserva de "Cliente reservante" sigue en estado "activa"
+    Cuando consulto mis servicios
+    Entonces el servicio "Corte" aparece en la lista con duración 30 minutos y estado "activo"
 
   @excepcional @P1
   Escenario: No eliminar el servicio de otro proveedor
