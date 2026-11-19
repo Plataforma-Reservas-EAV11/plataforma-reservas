@@ -31,10 +31,22 @@ Característica: Ver mis reservas activas
       | completada |
 
   @positivo @P2
-  @pendiente
   Escenario: Usuario sin reservas activas
     Dado que existe el usuario "Ana"
+    Y que existe el usuario "Luis"
+    Y que existe un horario habilitado de "08:00:00" a "12:00:00"
+    Y que "Luis" tiene una reserva activa en ese horario a las "09:00:00"
     Cuando "Ana" consulta sus reservas activas
     Entonces la respuesta tiene el código HTTP 200
     Y la lista de reservas activas contiene 0 reservas
     Y veo un mensaje indicando que aún no tengo reservas activas
+    Cuando "Ana" consulta sus reservas activas enviando el identificador de "Luis"
+    Entonces la respuesta tiene el código HTTP 200
+    Y la lista de reservas activas contiene 0 reservas
+    Y veo un mensaje indicando que aún no tengo reservas activas
+    Cuando "Luis" consulta sus reservas activas
+    Entonces la respuesta tiene el código HTTP 200
+    Y la lista de reservas activas contiene 1 reservas
+    Y la reserva de las "09:00:00" muestra el servicio "Corte", la fecha del horario, el horario y el estado "activa"
+    Cuando consulto las reservas activas sin iniciar sesión
+    Entonces la respuesta tiene el código HTTP 401

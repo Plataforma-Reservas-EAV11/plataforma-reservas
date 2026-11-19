@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import com.udea.reservas.plataformareservas.servicios.dto.ServicioResumenResponse;
@@ -23,6 +22,8 @@ import com.udea.reservas.plataformareservas.servicios.model.Servicio;
 import com.udea.reservas.plataformareservas.servicios.repository.IServicioRepository;
 import java.util.List;
 import java.util.Optional;
+import java.sql.SQLException;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +32,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 
 @ExtendWith(MockitoExtension.class)
 class ServicioServiceImplTest {
@@ -66,7 +68,7 @@ class ServicioServiceImplTest {
         when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
         when(recursoRepository.findAllByIdInAndProveedor_Id(List.of(51), 12))
             .thenReturn(List.of(recurso));
-        when(servicioRepository.save(any(Servicio.class))).thenAnswer(invocation -> {
+        when(servicioRepository.saveAndFlush(any(Servicio.class))).thenAnswer(invocation -> {
             Servicio servicio = invocation.getArgument(0);
             servicio.setId(41);
             return servicio;
@@ -83,7 +85,7 @@ class ServicioServiceImplTest {
         );
 
         ArgumentCaptor<Servicio> captor = ArgumentCaptor.forClass(Servicio.class);
-        verify(servicioRepository).save(captor.capture());
+        verify(servicioRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getProveedor()).isSameAs(proveedor);
         assertThat(captor.getValue().getNombre()).isEqualTo("Corte");
         assertThat(captor.getValue().getDescripcion()).isEqualTo("Corte de cabello");
@@ -119,7 +121,7 @@ class ServicioServiceImplTest {
                 assertThat(businessException.getStatus()).isEqualTo(HttpStatus.NOT_FOUND);
             });
 
-        verify(servicioRepository, never()).save(any(Servicio.class));
+        verify(servicioRepository, never()).saveAndFlush(any(Servicio.class));
         verify(agendaRepository, never()).save(any(Agenda.class));
     }
 
@@ -147,40 +149,29 @@ class ServicioServiceImplTest {
                 assertThat(businessException.getStatus()).isEqualTo(HttpStatus.CONFLICT);
             });
 
-        verify(servicioRepository, never()).save(any(Servicio.class));
+        verify(servicioRepository, never()).saveAndFlush(any(Servicio.class));
         verify(agendaRepository, never()).save(any(Agenda.class));
     }
 
     @Test
-    @DisplayName("Permite crear servicios con nombres duplicados para el mismo proveedor")
-    void crearServicioPermiteNombresDuplicados() {
+    @DisplayName("Rechaza un nombre duplicado antes de guardar servicio o agenda")
+    void crearServicioRechazaNombreDuplicado() {
         Proveedor proveedor = Proveedor.builder().id(12).build();
-        Recurso recurso = Recurso.builder()
-            .id(51)
-            .proveedor(proveedor)
-            .nombre("Sala 1")
-            .activo(true)
-            .build();
         when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
-        when(recursoRepository.findAllByIdInAndProveedor_Id(List.of(51), 12))
-            .thenReturn(List.of(recurso));
-        when(servicioRepository.save(any(Servicio.class))).thenAnswer(invocation -> {
-            Servicio servicio = invocation.getArgument(0);
-            servicio.setId(41);
-            return servicio;
-        });
-        when(agendaRepository.save(any(Agenda.class))).thenAnswer(invocation -> {
-            Agenda agenda = invocation.getArgument(0);
-            agenda.setId(42);
-            return agenda;
-        });
+        when(servicioRepository.existsNombreActivo(12, " Corte ")).thenReturn(true);
         CrearServicioRequest request =
-            new CrearServicioRequest("Corte", "Descripción", 30, List.of(51));
+            new CrearServicioRequest(" Corte ", "Descripción", 30, List.of(51));
 
-        servicioService.crearServicio(7, request);
-        servicioService.crearServicio(7, request);
-
-        verify(servicioRepository, times(2)).save(any(Servicio.class));
+        assertThatThrownBy(() -> servicioService.crearServicio(7, request))
+            .isInstanceOf(BusinessRuleException.class)
+            .satisfies(exception -> {
+                var error = (BusinessRuleException) exception;
+                assertThat(error.getErrorCode()).isEqualTo("DUPLICATE_SERVICE_NAME");
+                assertThat(error.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+                assertThat(error.getMessage()).isEqualTo("Ya existe un servicio con ese nombre para este proveedor.");
+            });
+        verify(servicioRepository, never()).saveAndFlush(any(Servicio.class));
+        verify(agendaRepository, never()).save(any(Agenda.class));
     }
 
     @Test
@@ -196,7 +187,7 @@ class ServicioServiceImplTest {
         when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
         when(recursoRepository.findAllByIdInAndProveedor_Id(List.of(51), 12))
             .thenReturn(List.of(recurso));
-        when(servicioRepository.save(any(Servicio.class))).thenAnswer(invocation -> {
+        when(servicioRepository.saveAndFlush(any(Servicio.class))).thenAnswer(invocation -> {
             Servicio servicio = invocation.getArgument(0);
             servicio.setId(41);
             return servicio;
@@ -213,7 +204,7 @@ class ServicioServiceImplTest {
         );
 
         ArgumentCaptor<Servicio> captor = ArgumentCaptor.forClass(Servicio.class);
-        verify(servicioRepository).save(captor.capture());
+        verify(servicioRepository).saveAndFlush(captor.capture());
         assertThat(captor.getValue().getRecursosCompatibles()).containsExactly(recurso);
         assertThat(response.recursoIds()).containsExactly(51);
     }
@@ -235,8 +226,49 @@ class ServicioServiceImplTest {
                 assertThat(businessException.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
             });
 
-        verify(servicioRepository, never()).save(any(Servicio.class));
+        verify(servicioRepository, never()).saveAndFlush(any(Servicio.class));
         verify(agendaRepository, never()).save(any(Agenda.class));
+    }
+
+    @Test
+    void conflictoDeIndiceSeTraduceSinCrearAgenda() {
+        Proveedor proveedor = Proveedor.builder().id(12).build();
+        Recurso recurso = Recurso.builder().id(51).proveedor(proveedor).activo(true).build();
+        when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
+        when(recursoRepository.findAllByIdInAndProveedor_Id(List.of(51), 12))
+            .thenReturn(List.of(recurso));
+        var violation = new ConstraintViolationException(
+            "duplicate", new SQLException("duplicate"),
+            "ux_servicio_proveedor_nombre_activo"
+        );
+        when(servicioRepository.saveAndFlush(any(Servicio.class)))
+            .thenThrow(new DataIntegrityViolationException("database", violation));
+
+        CrearServicioRequest request =
+            new CrearServicioRequest("Corte", "Descripción", 30, List.of(51));
+        assertThatThrownBy(() -> servicioService.crearServicio(7, request))
+            .isInstanceOf(BusinessRuleException.class)
+            .satisfies(exception -> {
+                var error = (BusinessRuleException) exception;
+                assertThat(error.getErrorCode()).isEqualTo("DUPLICATE_SERVICE_NAME");
+                assertThat(error.getStatus()).isEqualTo(HttpStatus.CONFLICT);
+            });
+        verify(agendaRepository, never()).save(any(Agenda.class));
+    }
+
+    @Test
+    void otraViolacionDeIntegridadNoSeConfundeConNombreDuplicado() {
+        Proveedor proveedor = Proveedor.builder().id(12).build();
+        Recurso recurso = Recurso.builder().id(51).proveedor(proveedor).activo(true).build();
+        when(proveedorRepository.findAllByUsuario_Id(7)).thenReturn(List.of(proveedor));
+        when(recursoRepository.findAllByIdInAndProveedor_Id(List.of(51), 12))
+            .thenReturn(List.of(recurso));
+        var error = new DataIntegrityViolationException("otro error");
+        when(servicioRepository.saveAndFlush(any(Servicio.class))).thenThrow(error);
+
+        CrearServicioRequest request =
+            new CrearServicioRequest("Corte", "Descripción", 30, List.of(51));
+        assertThatThrownBy(() -> servicioService.crearServicio(7, request)).isSameAs(error);
     }
 
     @Test
@@ -297,7 +329,7 @@ class ServicioServiceImplTest {
                 assertThat(error.getMessage()).isEqualTo("La lista de recursos contiene identificadores duplicados.");
                 assertThat(error.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
             });
-        verify(servicioRepository, never()).save(any(Servicio.class));
+        verify(servicioRepository, never()).saveAndFlush(any(Servicio.class));
         verify(agendaRepository, never()).save(any(Agenda.class));
     }
 
@@ -315,7 +347,7 @@ class ServicioServiceImplTest {
                 assertThat(error.getErrorCode()).isEqualTo("RESOURCE_REQUIRED");
                 assertThat(error.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
             });
-        verify(servicioRepository, never()).save(any(Servicio.class));
+        verify(servicioRepository, never()).saveAndFlush(any(Servicio.class));
         verify(agendaRepository, never()).save(any(Agenda.class));
     }
 
@@ -342,7 +374,7 @@ class ServicioServiceImplTest {
                 assertThat(error.getMessage()).isEqualTo("El servicio necesita al menos un recurso activo.");
                 assertThat(error.getStatus()).isEqualTo(HttpStatus.BAD_REQUEST);
             });
-        verify(servicioRepository, never()).save(any(Servicio.class));
+        verify(servicioRepository, never()).saveAndFlush(any(Servicio.class));
         verify(agendaRepository, never()).save(any(Agenda.class));
     }
 

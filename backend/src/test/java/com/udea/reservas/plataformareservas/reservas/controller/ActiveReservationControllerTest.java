@@ -79,14 +79,15 @@ class ActiveReservationControllerTest {
     }
 
     @Test
-    @DisplayName("Devuelve arreglo vacío si no hay reservas activas")
-    void returnsEmptyArrayWhenUserHasNoActiveReservations() throws Exception {
+    @DisplayName("Devuelve mensaje y arreglo vacío si no hay reservas activas")
+    void returnsMessageWhenUserHasNoActiveReservations() throws Exception {
         when(reservationService.getActiveReservations(USER_ID)).thenReturn(List.of());
 
         mockMvc.perform(get("/api/v1/reservations/me/active"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isArray())
-            .andExpect(jsonPath("$").isEmpty());
+            .andExpect(jsonPath("$.message").value("Aún no tienes reservas activas."))
+            .andExpect(jsonPath("$.data").isArray())
+            .andExpect(jsonPath("$.data").isEmpty());
 
         verify(reservationService).getActiveReservations(USER_ID);
     }

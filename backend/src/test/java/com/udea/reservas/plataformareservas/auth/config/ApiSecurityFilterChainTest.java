@@ -157,8 +157,9 @@ class ApiSecurityFilterChainTest {
                 .queryParam("userId", "99")
         )
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$").isArray())
-            .andExpect(jsonPath("$").isEmpty());
+            .andExpect(jsonPath("$.message").value("Aún no tienes reservas activas."))
+            .andExpect(jsonPath("$.data").isArray())
+            .andExpect(jsonPath("$.data").isEmpty());
 
         verify(reservaService).getActiveReservations(7);
         verify(reservaService, never()).getActiveReservations(99);

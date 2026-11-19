@@ -1,6 +1,7 @@
 package com.udea.reservas.plataformareservas.reservas.controller;
 
 import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
+import com.udea.reservas.plataformareservas.common.ApiSuccessResponse;
 import com.udea.reservas.plataformareservas.reservas.dto.ActiveReservationResponse;
 import com.udea.reservas.plataformareservas.reservas.service.ReservaService;
 import java.util.List;
@@ -16,9 +17,13 @@ public class ActiveReservationController {
     private final ReservaService reservaService;
 
     @GetMapping("/api/v1/reservations/me/active")
-    public List<ActiveReservationResponse> getActiveReservations(
+    public Object getActiveReservations(
         @AuthenticationPrincipal UserPrincipal user
     ) {
-        return reservaService.getActiveReservations(user.getId());
+        List<ActiveReservationResponse> reservations = reservaService.getActiveReservations(user.getId());
+        if (reservations.isEmpty()) {
+            return new ApiSuccessResponse<>("Aún no tienes reservas activas.", reservations);
+        }
+        return reservations;
     }
 }

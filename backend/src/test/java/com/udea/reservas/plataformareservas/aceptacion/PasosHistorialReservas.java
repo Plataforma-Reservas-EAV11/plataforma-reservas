@@ -38,6 +38,18 @@ public class PasosHistorialReservas {
         api.get(RUTA_HISTORIAL);
     }
 
+    @Cuando("{string} consulta su historial enviando el identificador de {string}")
+    public void consultaHistorialConUsuarioAjeno(String nombre, String otroUsuario) {
+        autenticarComo(nombre);
+        api.get(RUTA_HISTORIAL + "?usuarioId=" + datos.idDeUsuario(otroUsuario));
+    }
+
+    @Cuando("consulto el historial sin iniciar sesión")
+    public void consultaHistorialSinSesion() {
+        api.sinSesion();
+        api.get(RUTA_HISTORIAL);
+    }
+
     @Cuando("{string} consulta el detalle de esa reserva")
     public void consultaDetalleDeReserva(String nombre) {
         autenticarComo(nombre);
@@ -46,7 +58,11 @@ public class PasosHistorialReservas {
 
     @Entonces("la lista del historial contiene {int} reservas")
     public void listaHistorialContiene(int cantidad) {
-        assertThat(api.ultimoJson()).hasSize(cantidad);
+        JsonNode respuesta = api.ultimoJson();
+        JsonNode historial = respuesta.isObject() ? respuesta.get("data") : respuesta;
+        assertThat(historial).isNotNull();
+        assertThat(historial.isArray()).isTrue();
+        assertThat(historial).hasSize(cantidad);
     }
 
     @Y("la reserva de las {string} muestra el servicio {string}, la fecha del horario y el estado {string}")
@@ -69,18 +85,11 @@ public class PasosHistorialReservas {
     public void veoMensajeSinReservas() {
         JsonNode respuesta = api.ultimoJson();
         assertThat(respuesta.isObject()).isTrue();
-        assertThat(mensajeDe(respuesta))
+        JsonNode mensaje = respuesta.get("message");
+        assertThat(mensaje)
             .as("Mensaje del historial sin reservas")
-            .isNotNull()
-            .asString()
-            .containsIgnoringCase("aún no tengo reservas");
-    }
-
-    private JsonNode mensajeDe(JsonNode respuesta) {
-        if (respuesta.has("message")) {
-            return respuesta.get("message");
-        }
-        return respuesta.get("mensaje");
+            .isNotNull();
+        assertThat(mensaje.asString()).isEqualTo("Aún no tienes reservas registradas.");
     }
 
     @Y("el detalle muestra el servicio {string}, la fecha del horario, el horario {string}, el estado {string} y el usuario {string}")

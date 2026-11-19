@@ -1,6 +1,7 @@
 package com.udea.reservas.plataformareservas.reservas.controller;
 
 import com.udea.reservas.plataformareservas.auth.service.UserPrincipal;
+import com.udea.reservas.plataformareservas.common.ApiSuccessResponse;
 import com.udea.reservas.plataformareservas.reservas.dto.*;
 import com.udea.reservas.plataformareservas.reservas.exception.ReservaException;
 import com.udea.reservas.plataformareservas.reservas.model.Reserva;
@@ -56,9 +57,12 @@ public class ReservaController {
     }
 
     @GetMapping("/historial")
-    public ResponseEntity<List<ReservaHistorialResponse>> consultarHistorial(
+    public ResponseEntity<Object> consultarHistorial(
             @AuthenticationPrincipal UserPrincipal usuario) {
         List<ReservaHistorialResponse> historial = reservaService.obtenerHistorialUsuario(usuario.getId());
+        if (historial.isEmpty()) {
+            return ResponseEntity.ok(new ApiSuccessResponse<>("Aún no tienes reservas registradas.", historial));
+        }
         return ResponseEntity.ok(historial);
     }
 

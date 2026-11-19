@@ -109,6 +109,35 @@ public class ReservaServiceImpl implements ReservaService {
         Agenda agenda = agendaRepository.findByServicio_Id(servicioId)
             .orElseThrow(noExiste("El servicio no tiene una agenda configurada."));
 
+        validarAgenda(agenda, servicio);
+
+        // Regla: no se puede reservar en una fecha/hora que ya pasó
+        rechazarSi(
+            LocalDateTime.of(fecha, hora).isBefore(LocalDateTime.now(clock)),
+            "No se puede reservar en una fecha u hora que ya pasó.",
+            HttpStatus.BAD_REQUEST
+        );
+
+        LocalTime horaFin = calcularHoraFin(servicio, hora);
+        HorarioDisponible horario = buscarBloqueHorario(agenda, fecha, hora, horaFin);
+        Recurso recursoDisponible = seleccionarRecursoDisponible(servicioId, servicio, fecha, hora, horaFin);
+
+        Reserva reserva = Reserva.builder()
+            .usuario(usuario)
+            .horario(horario)
+            .servicio(servicio)
+            .recurso(recursoDisponible)
+            .fecha(fecha)
+            .hora(hora)
+            .horaFin(horaFin)
+            .estado(ESTADO_ACTIVA)
+            .createdAt(LocalDateTime.now(clock))
+            .build();
+
+        return guardarReserva(reserva);
+    }
+
+    private void validarAgenda(Agenda agenda, Servicio servicio) {
         // Regla: el horario debe estar habilitado por el proveedor (agenda activa)
         rechazarSi(
             !agenda.isActiva(),
@@ -121,14 +150,9 @@ public class ReservaServiceImpl implements ReservaService {
             "La agenda no pertenece al proveedor del servicio.",
             HttpStatus.BAD_REQUEST
         );
+    }
 
-        // Regla: no se puede reservar en una fecha/hora que ya pasó
-        rechazarSi(
-            LocalDateTime.of(fecha, hora).isBefore(LocalDateTime.now(clock)),
-            "No se puede reservar en una fecha u hora que ya pasó.",
-            HttpStatus.BAD_REQUEST
-        );
-
+    private LocalTime calcularHoraFin(Servicio servicio, LocalTime hora) {
         Integer duracion = servicio.getDuracionMinutos();
         if (duracion == null || duracion <= 0) {
             throw new ReservaException(
@@ -142,7 +166,15 @@ public class ReservaServiceImpl implements ReservaService {
             "La duración del servicio excede el horario disponible.",
             HttpStatus.BAD_REQUEST
         );
+        return horaFin;
+    }
 
+    private HorarioDisponible buscarBloqueHorario(
+        Agenda agenda,
+        LocalDate fecha,
+        LocalTime hora,
+        LocalTime horaFin
+    ) {
         // Regla: la fecha debe caer en el día de la semana del horario (0 = lunes ... 6 = domingo)
         int diaSemanaFecha = fecha.getDayOfWeek().getValue() - 1;
         List<HorarioDisponible> horariosDelDia =
@@ -173,7 +205,16 @@ public class ReservaServiceImpl implements ReservaService {
             "La duración del servicio excede el horario disponible.",
             HttpStatus.BAD_REQUEST
         );
+        return horario;
+    }
 
+    private Recurso seleccionarRecursoDisponible(
+        Integer servicioId,
+        Servicio servicio,
+        LocalDate fecha,
+        LocalTime hora,
+        LocalTime horaFin
+    ) {
         // Lock all eligible resources in a stable order so concurrent bookings
         // serialize before checking their occupied intervals.
         List<Recurso> recursos = recursoRepository.findActiveCompatibleForUpdate(
@@ -187,7 +228,7 @@ public class ReservaServiceImpl implements ReservaService {
             );
         }
 
-        Recurso recursoDisponible = recursos.stream()
+        return recursos.stream()
             .filter(recurso ->
                 !reservaRepository.existsReservaActivaSolapada(
                     recurso.getId(),
@@ -200,19 +241,9 @@ public class ReservaServiceImpl implements ReservaService {
             .orElseThrow(() ->
                 new ReservaException(MENSAJE_NO_DISPONIBLE, HttpStatus.CONFLICT)
             );
+    }
 
-        Reserva reserva = Reserva.builder()
-            .usuario(usuario)
-            .horario(horario)
-            .servicio(servicio)
-            .recurso(recursoDisponible)
-            .fecha(fecha)
-            .hora(hora)
-            .horaFin(horaFin)
-            .estado(ESTADO_ACTIVA)
-            .createdAt(LocalDateTime.now(clock))
-            .build();
-
+    private Reserva guardarReserva(Reserva reserva) {
         try {
             return reservaRepository.saveAndFlush(reserva);
         } catch (DataIntegrityViolationException exception) {

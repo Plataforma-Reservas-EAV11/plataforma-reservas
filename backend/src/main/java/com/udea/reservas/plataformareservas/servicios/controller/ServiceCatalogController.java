@@ -22,9 +22,13 @@ public class ServiceCatalogController {
     public ApiSuccessResponse<List<ProviderServiceResponse>> listProviderServices(
         @PathVariable Integer providerId
     ) {
+        List<ProviderServiceResponse> services = catalogService.getProviderServices(providerId);
+        String message = services.isEmpty()
+            ? "El proveedor no tiene servicios disponibles."
+            : "Servicios consultados correctamente.";
         return new ApiSuccessResponse<>(
-            "Servicios consultados correctamente.",
-            catalogService.getProviderServices(providerId)
+            message,
+            services
         );
     }
 

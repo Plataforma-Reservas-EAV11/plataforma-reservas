@@ -27,6 +27,10 @@ CREATE TABLE servicio (
     eliminado BOOLEAN NOT NULL DEFAULT false
 );
 
+CREATE UNIQUE INDEX ux_servicio_proveedor_nombre_activo
+    ON servicio (proveedor_id, lower(btrim(nombre)))
+    WHERE eliminado = false;
+
 CREATE TABLE recurso (
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     proveedor_id INTEGER NOT NULL REFERENCES proveedor(id),

@@ -70,6 +70,7 @@ class ServiceCatalogControllerTest {
 
         mockMvc.perform(get("/api/v1/providers/8/services"))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("El proveedor no tiene servicios disponibles."))
             .andExpect(jsonPath("$.data").isArray())
             .andExpect(jsonPath("$.data").isEmpty());
     }
