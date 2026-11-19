@@ -244,9 +244,10 @@ class ServicioServiceImplTest {
         when(servicioRepository.saveAndFlush(any(Servicio.class)))
             .thenThrow(new DataIntegrityViolationException("database", violation));
 
-        assertThatThrownBy(() -> servicioService.crearServicio(
-            7, new CrearServicioRequest("Corte", "Descripción", 30, List.of(51))
-        )).isInstanceOf(BusinessRuleException.class)
+        CrearServicioRequest request =
+            new CrearServicioRequest("Corte", "Descripción", 30, List.of(51));
+        assertThatThrownBy(() -> servicioService.crearServicio(7, request))
+            .isInstanceOf(BusinessRuleException.class)
             .satisfies(exception -> {
                 var error = (BusinessRuleException) exception;
                 assertThat(error.getErrorCode()).isEqualTo("DUPLICATE_SERVICE_NAME");
@@ -265,9 +266,9 @@ class ServicioServiceImplTest {
         var error = new DataIntegrityViolationException("otro error");
         when(servicioRepository.saveAndFlush(any(Servicio.class))).thenThrow(error);
 
-        assertThatThrownBy(() -> servicioService.crearServicio(
-            7, new CrearServicioRequest("Corte", "Descripción", 30, List.of(51))
-        )).isSameAs(error);
+        CrearServicioRequest request =
+            new CrearServicioRequest("Corte", "Descripción", 30, List.of(51));
+        assertThatThrownBy(() -> servicioService.crearServicio(7, request)).isSameAs(error);
     }
 
     @Test

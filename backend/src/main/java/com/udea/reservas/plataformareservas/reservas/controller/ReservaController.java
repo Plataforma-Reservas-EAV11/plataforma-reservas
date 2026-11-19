@@ -57,7 +57,7 @@ public class ReservaController {
     }
 
     @GetMapping("/historial")
-    public ResponseEntity<?> consultarHistorial(
+    public ResponseEntity<Object> consultarHistorial(
             @AuthenticationPrincipal UserPrincipal usuario) {
         List<ReservaHistorialResponse> historial = reservaService.obtenerHistorialUsuario(usuario.getId());
         if (historial.isEmpty()) {
