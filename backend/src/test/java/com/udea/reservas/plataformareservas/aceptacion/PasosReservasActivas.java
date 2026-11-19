@@ -21,6 +21,23 @@ public class PasosReservasActivas {
 
     @Cuando("{string} consulta sus reservas activas")
     public void consultaSusReservasActivas(String nombre) {
+        autenticarComo(nombre);
+        api.get(RUTA_RESERVAS_ACTIVAS);
+    }
+
+    @Cuando("{string} consulta sus reservas activas enviando el identificador de {string}")
+    public void consultaReservasActivasConUsuarioAjeno(String nombre, String otroUsuario) {
+        autenticarComo(nombre);
+        api.get(RUTA_RESERVAS_ACTIVAS + "?userId=" + datos.idDeUsuario(otroUsuario));
+    }
+
+    @Cuando("consulto las reservas activas sin iniciar sesión")
+    public void consultaReservasActivasSinSesion() {
+        api.sinSesion();
+        api.get(RUTA_RESERVAS_ACTIVAS);
+    }
+
+    private void autenticarComo(String nombre) {
         if (!api.haySesion(nombre)) {
             api.iniciarSesion(
                 nombre,
@@ -29,14 +46,15 @@ public class PasosReservasActivas {
             );
         }
         api.usarSesion(nombre);
-        api.get(RUTA_RESERVAS_ACTIVAS);
     }
 
     @Entonces("la lista de reservas activas contiene {int} reservas")
     public void listaReservasActivasContiene(int cantidad) {
         JsonNode respuesta = api.ultimoJson();
-        assertThat(respuesta.isArray()).isTrue();
-        assertThat(respuesta).hasSize(cantidad);
+        JsonNode reservas = respuesta.isObject() ? respuesta.get("data") : respuesta;
+        assertThat(reservas).isNotNull();
+        assertThat(reservas.isArray()).isTrue();
+        assertThat(reservas).hasSize(cantidad);
     }
 
     @Y("la reserva de las {string} muestra el servicio {string}, la fecha del horario, el horario y el estado {string}")
@@ -53,18 +71,9 @@ public class PasosReservasActivas {
     public void veoMensajeSinReservasActivas() {
         JsonNode respuesta = api.ultimoJson();
         assertThat(respuesta.isObject()).isTrue();
-        assertThat(mensajeDe(respuesta))
-            .as("Mensaje de reservas activas vacías")
-            .isNotNull()
-            .asString()
-            .containsIgnoringCase("aún no tengo reservas activas");
-    }
-
-    private JsonNode mensajeDe(JsonNode respuesta) {
-        if (respuesta.has("message")) {
-            return respuesta.get("message");
-        }
-        return respuesta.get("mensaje");
+        JsonNode mensaje = respuesta.get("message");
+        assertThat(mensaje).as("Mensaje de reservas activas vacías").isNotNull();
+        assertThat(mensaje.asString()).isEqualTo("Aún no tienes reservas activas.");
     }
 
     private JsonNode buscarReserva(String hora) {

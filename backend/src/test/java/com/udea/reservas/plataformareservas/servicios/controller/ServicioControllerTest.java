@@ -131,6 +131,44 @@ class ServicioControllerTest {
     }
 
     @Test
+    void camposObligatoriosInformanSuPropioMensaje() throws Exception {
+        String[] bodies = {
+            "{\"nombre\":\" \",\"descripcion\":\"Descripción\",\"duracion\":30,\"recursoIds\":[51]}",
+            "{\"nombre\":\"Corte\",\"descripcion\":\" \",\"duracion\":30,\"recursoIds\":[51]}",
+            "{\"nombre\":\"Corte\",\"descripcion\":\"Descripción\",\"recursoIds\":[51]}",
+            "{\"nombre\":\"Corte\",\"descripcion\":\"Descripción\",\"duracion\":null,\"recursoIds\":[51]}"
+        };
+        String[] details = {
+            "nombre El nombre es obligatorio y no puede estar vacío.",
+            "descripcion La descripción es un campo obligatorio y no puede estar vacía.",
+            "duracion El campo duración es obligatorio.",
+            "duracion El campo duración es obligatorio."
+        };
+        for (int i = 0; i < bodies.length; i++) {
+            mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON).content(bodies[i]))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.details[0]").value(details[i]));
+        }
+        verify(servicioService, never()).crearServicio(any(Integer.class), any());
+    }
+
+    @Test
+    void nombreDuplicadoRespondeConflict() throws Exception {
+        doThrow(new BusinessRuleException(
+            "DUPLICATE_SERVICE_NAME",
+            "Ya existe un servicio con ese nombre para este proveedor.",
+            HttpStatus.CONFLICT.value()
+        )).when(servicioService).crearServicio(any(Integer.class), any());
+
+        mockMvc.perform(post(RUTA).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"nombre\":\"Corte\",\"descripcion\":\"Descripción\",\"duracion\":30,\"recursoIds\":[51]}"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.errorCode").value("DUPLICATE_SERVICE_NAME"))
+            .andExpect(jsonPath("$.message").value("Ya existe un servicio con ese nombre para este proveedor."));
+    }
+
+    @Test
     @DisplayName("Rechaza una duración cero o negativa")
     void crearServicioDuracionNoPositivaEsInvalida() throws Exception {
         for (int duracion : new int[] { 0, -1 }) {
@@ -140,9 +178,14 @@ class ServicioControllerTest {
                     .content(
                         "{\"nombre\":\"Corte\",\"descripcion\":\"Descripción\",\"duracion\":" +
                         duracion +
-                        "}"
+                        ",\"recursoIds\":[51]}"
                     )
-            ).andExpect(status().isBadRequest());
+            )
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value("VALIDATION_ERROR"))
+                .andExpect(jsonPath("$.details.length()").value(1))
+                .andExpect(jsonPath("$.details[0]")
+                    .value("duracion La duración en minutos debe ser un entero positivo."));
         }
 
         verify(servicioService, never()).crearServicio(any(Integer.class), any());

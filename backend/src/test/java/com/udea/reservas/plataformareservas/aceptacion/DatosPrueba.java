@@ -108,6 +108,18 @@ public class DatosPrueba {
         );
     }
 
+    public int contarTodosLosServicios() {
+        return contar("SELECT count(*) FROM servicio");
+    }
+
+    public int contarTodasLasAgendas() {
+        return contar("SELECT count(*) FROM agenda");
+    }
+
+    public int contarTodasLasAsociaciones() {
+        return contar("SELECT count(*) FROM servicio_recurso");
+    }
+
     public int contarServiciosActivosDeUsuario(Integer usuarioId) {
         return contar(
             "SELECT count(*) FROM servicio s JOIN proveedor p ON p.id = s.proveedor_id WHERE p.usuario_id = ? AND NOT s.eliminado",

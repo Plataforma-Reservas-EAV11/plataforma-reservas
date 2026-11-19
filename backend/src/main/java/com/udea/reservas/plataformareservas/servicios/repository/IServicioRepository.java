@@ -12,6 +12,16 @@ import org.springframework.data.repository.query.Param;
 
 public interface IServicioRepository extends JpaRepository<Servicio, Integer> {
 
+    @Query(value = """
+        select exists (
+            select 1 from servicio
+            where proveedor_id = :proveedorId
+              and eliminado = false
+              and lower(btrim(nombre)) = lower(btrim(:nombre))
+        )
+        """, nativeQuery = true)
+    boolean existsNombreActivo(@Param("proveedorId") Integer proveedorId, @Param("nombre") String nombre);
+
     @EntityGraph(attributePaths = "proveedor")
     @Query("select s from Servicio s where s.proveedor.id = :proveedorId and s.eliminado = false order by s.nombre, s.id")
     List<Servicio> findAllByProveedor_IdOrderByNombreAscIdAsc(@Param("proveedorId") Integer proveedorId);

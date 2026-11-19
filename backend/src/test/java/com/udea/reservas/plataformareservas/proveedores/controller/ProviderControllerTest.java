@@ -110,8 +110,23 @@ class ProviderControllerTest {
 
         mockMvc.perform(get("/api/v1/providers"))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("No hay proveedores disponibles."))
             .andExpect(jsonPath("$.data.content").isEmpty())
             .andExpect(jsonPath("$.data.empty").value(true));
+    }
+
+    @Test
+    @DisplayName("Una página vacía no implica que el catálogo no tenga proveedores")
+    void emptyPageWithExistingProvidersKeepsSuccessMessage() throws Exception {
+        when(serviceCatalogService.getProviders(9, 1)).thenReturn(
+            new ProviderPageResponse(List.of(), 9, 1, 1, 1, false, true, true)
+        );
+
+        mockMvc.perform(get("/api/v1/providers").queryParam("page", "9").queryParam("size", "1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.message").value("Proveedores consultados correctamente."))
+            .andExpect(jsonPath("$.data.content").isEmpty())
+            .andExpect(jsonPath("$.data.totalElements").value(1));
     }
 
     @Test

@@ -156,7 +156,7 @@ Endpoint: `POST /api/v1/providers/me/services` (requiere sesión de proveedor y 
 }
 ```
 
-`duracion` se expresa en minutos. Nombre y descripción son obligatorios (máximo 150 y 500 caracteres); la duración es un entero positivo y no tiene un máximo de negocio definido. `recursoIds` es obligatorio y debe incluir al menos un recurso del proveedor autenticado: todos deben existir, pertenecerle, no estar repetidos y contar con al menos uno activo. Si el proveedor desactiva después todos los recursos compatibles, el servicio deja de aceptar reservas hasta recuperar uno activo. Los nombres duplicados están permitidos. El proveedor propietario se determina mediante la identidad de la sesión; `proveedor_id` no forma parte del DTO y enviar ese dato no cambia el propietario. La operación también crea una agenda activa y devuelve su `agendaId`, que se usa para registrar bloques de disponibilidad.
+`duracion` se expresa en minutos. Nombre y descripción son obligatorios (máximo 150 y 500 caracteres); la duración es un entero positivo y no tiene un máximo de negocio definido. `recursoIds` es obligatorio y debe incluir al menos un recurso del proveedor autenticado: todos deben existir, pertenecerle, no estar repetidos y contar con al menos uno activo. Si el proveedor desactiva después todos los recursos compatibles, el servicio deja de aceptar reservas hasta recuperar uno activo. Los nombres de servicios activos deben ser únicos por proveedor, sin distinguir mayúsculas ni espacios externos; los nombres de servicios eliminados pueden reutilizarse. El nombre original se conserva. El proveedor propietario se determina mediante la identidad de la sesión; `proveedor_id` no forma parte del DTO y enviar ese dato no cambia el propietario. La operación también crea una agenda activa y devuelve su `agendaId`, que se usa para registrar bloques de disponibilidad.
 
 **Respuestas:**
 - `201 Created` — servicio y agenda creados; la respuesta incluye sus identificadores, los datos del servicio y los recursos asociados.
@@ -166,6 +166,7 @@ Endpoint: `POST /api/v1/providers/me/services` (requiere sesión de proveedor y 
 - `404 Not Found` — el usuario no tiene un perfil de proveedor.
 - `400 Bad Request` — alguno de los recursos indicados no existe, pertenece a otro proveedor o aparece duplicado.
 - `409 Conflict` — el usuario tiene más de un perfil de proveedor; no se escoge ninguno automáticamente.
+- `409 Conflict` (`DUPLICATE_SERVICE_NAME`) — ya existe un servicio activo con el mismo nombre para ese proveedor.
 
 `backend/src/main/resources/db/schema.sql` es el esquema local usado por Testcontainers. La migración existente `backend/src/main/resources/db/migraciones/2026-11-02-crear-servicio.sql` crea únicamente `servicio`; no incluye la asociación con recursos ni los nuevos datos/restricciones de reservas. No desplegar esta versión en una base existente hasta preparar y revisar una migración aditiva compatible con sus datos: en particular, las reservas activas históricas no tienen servicio/duración y requieren una decisión de backfill antes de exigirles recurso e intervalo. No se conectó ni modificó Supabase.
 
@@ -176,6 +177,8 @@ Endpoint: `POST /api/v1/providers/me/services` (requiere sesión de proveedor y 
 `DELETE /api/v1/providers/me/services/{servicioId}` requiere sesión de proveedor y token CSRF. Elimina lógicamente un servicio propio sin reservas activas y conserva sus datos y reservas históricas. Un servicio eliminado no aparece en el catálogo ni admite nuevas reservas. Devuelve `200` al eliminar, `404` para servicios ajenos, inexistentes o ya eliminados, y `409` (`SERVICE_HAS_ACTIVE_RESERVATIONS`) si existen reservas activas.
 
 En bases existentes, ejecutar previamente `backend/src/main/resources/db/migraciones/2026-11-06-eliminacion-logica-servicio.sql`, además de aplicar las migraciones de esquema pendientes indicadas arriba.
+
+Antes de desplegar la unicidad de nombres, ejecutar una vez `backend/src/main/resources/db/migraciones/2026-11-18-nombre-servicio-unico.sql`. La migración bloquea las escrituras mientras comprueba los datos y crea el índice; si hay nombres activos duplicados por proveedor, falla sin modificar registros. Deben revisarse y resolverse manualmente antes de volver a intentarla. No se han inspeccionado los datos de las bases existentes.
 
 Esta migración tampoco cambia la cardinalidad de `proveedor.usuario_id`; el endpoint rechaza perfiles duplicados. Antes de decidir una restricción única futura, revisar los duplicados con una consulta de solo lectura:
 ```sql

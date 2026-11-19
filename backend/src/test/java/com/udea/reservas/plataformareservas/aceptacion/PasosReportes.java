@@ -61,6 +61,24 @@ public class PasosReportes {
         fechaFin = datos.hoy().plusDays(14);
     }
 
+    @Dado("que solo hay reservas canceladas en el periodo consultado")
+    public void soloHayReservasCanceladas() {
+        prepararAgendaYUsuario();
+        datos.crearReserva("Ana", LocalTime.of(9, 0), "cancelada");
+        fechaInicio = datos.hoy().plusDays(1);
+        fechaFin = datos.hoy().plusDays(14);
+    }
+
+    @Dado("que hay reservas activas, completadas y canceladas en el periodo consultado")
+    public void hayReservasDeDistintosEstados() {
+        prepararAgendaYUsuario();
+        datos.crearReserva("Ana", LocalTime.of(9, 0), "activa");
+        datos.crearReserva("Ana", LocalTime.of(10, 0), "completada");
+        datos.crearReserva("Ana", LocalTime.of(11, 0), "cancelada");
+        fechaInicio = datos.hoy().plusDays(1);
+        fechaFin = datos.hoy().plusDays(14);
+    }
+
     @Cuando("consulto el reporte de un periodo determinado")
     public void consultoReportePeriodoDeterminado() {
         consultarReporte();
@@ -88,6 +106,7 @@ public class PasosReportes {
     }
 
     @Y("el reporte muestra la ocupación del servicio {string} con {int} reserva")
+    @Y("el reporte muestra la ocupación del servicio {string} con {int} reservas")
     @Y("el reporte solo incluye el servicio {string} con {int} reserva")
     public void reporteMuestraOcupacionServicio(String nombre, int cantidad) {
         JsonNode servicio = buscarPorNombre(
@@ -100,6 +119,7 @@ public class PasosReportes {
     }
 
     @Y("el reporte muestra el uso del recurso {string} con {int} reserva")
+    @Y("el reporte muestra el uso del recurso {string} con {int} reservas")
     @Y("el reporte solo incluye el recurso {string} con {int} reserva")
     public void reporteMuestraUsoRecurso(String nombre, int cantidad) {
         JsonNode recurso = buscarPorNombre(
@@ -114,7 +134,9 @@ public class PasosReportes {
     @Y("el reporte muestra los valores de ocupación y uso en cero")
     public void reporteMuestraValoresEnCero() {
         JsonNode reporte = api.ultimoJson();
+        assertThat(reporte.get("ocupacionPorServicio").isArray()).isTrue();
         assertThat(reporte.get("ocupacionPorServicio")).isEmpty();
+        assertThat(reporte.get("usoPorRecurso").isArray()).isTrue();
         assertThat(reporte.get("usoPorRecurso")).isEmpty();
     }
 
@@ -122,18 +144,14 @@ public class PasosReportes {
     public void reporteIndicaPeriodoSinReservas() {
         JsonNode reporte = api.ultimoJson();
         assertThat(reporte.get("totalReservas").asLong()).isZero();
-        assertThat(mensajeDe(reporte))
-            .as("Mensaje del reporte sin reservas")
-            .isNotNull()
-            .asString()
-            .containsIgnoringCase("No hay reservas en el periodo seleccionado");
+        JsonNode mensaje = reporte.get("message");
+        assertThat(mensaje).as("Mensaje del reporte sin reservas").isNotNull();
+        assertThat(mensaje.asString()).isEqualTo("No hay reservas en el periodo seleccionado.");
     }
 
-    private JsonNode mensajeDe(JsonNode respuesta) {
-        if (respuesta.has("message")) {
-            return respuesta.get("message");
-        }
-        return respuesta.get("mensaje");
+    @Y("el reporte no incluye el mensaje de periodo vacío")
+    public void reporteSinMensajeDePeriodoVacio() {
+        assertThat(api.ultimoJson().has("message")).isFalse();
     }
 
     @Y("no se genera el reporte")

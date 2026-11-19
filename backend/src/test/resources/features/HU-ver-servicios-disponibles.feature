@@ -41,7 +41,6 @@ Característica: Ver servicios disponibles
     Y veo horarios futuros y libres del servicio "Corte"
 
   @positivo @P2
-  @pendiente
   Escenario: Proveedor sin servicios registrados
     Dado que estoy autenticado como usuario
     Y que el proveedor "Proveedor vacío" no tiene servicios registrados
@@ -51,7 +50,6 @@ Característica: Ver servicios disponibles
     Y la respuesta indica que el proveedor no tiene servicios disponibles
 
   @positivo @P2
-  @pendiente
   Escenario: No hay proveedores registrados
     Dado que estoy autenticado como usuario
     Cuando accedo a la sección de servicios

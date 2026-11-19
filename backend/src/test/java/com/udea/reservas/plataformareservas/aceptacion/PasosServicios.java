@@ -9,6 +9,7 @@ import io.cucumber.java.es.Y;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.net.http.HttpResponse;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +33,9 @@ public class PasosServicios {
 
     private Integer usuarioId;
     private Integer recursoId;
+    private String sesionProveedor;
+    private String emailProveedor;
+    private List<HttpResponse<String>> respuestasSimultaneas;
     private final Map<String, Integer> serviciosPorNombre = new HashMap<>();
     private final Map<String, Integer> proveedoresPorNombre = new HashMap<>();
 
@@ -39,6 +43,8 @@ public class PasosServicios {
     public void existeProveedor(String nombre, String email) {
         usuarioId = datos.crearProveedor(nombre, email);
         proveedoresPorNombre.put(nombre, datos.proveedorDeUsuario(usuarioId));
+        sesionProveedor = nombre;
+        emailProveedor = email;
         api.iniciarSesion(nombre, email, DatosPrueba.CONTRASENA_POR_DEFECTO);
     }
 
@@ -200,13 +206,13 @@ public class PasosServicios {
     @Y("la respuesta indica que el proveedor no tiene servicios disponibles")
     public void respuestaIndicaProveedorSinServicios() {
         assertThat(mensajeRespuesta())
-            .containsIgnoringCase("no tiene servicios disponibles");
+            .isEqualTo("El proveedor no tiene servicios disponibles.");
     }
 
     @Y("la respuesta indica que no hay proveedores disponibles")
     public void respuestaIndicaSinProveedores() {
         assertThat(mensajeRespuesta())
-            .containsIgnoringCase("no hay proveedores disponibles");
+            .isEqualTo("No hay proveedores disponibles.");
     }
 
     @Y("el servicio {string} muestra duración {int} minutos y proveedor {string}")
@@ -294,9 +300,13 @@ public class PasosServicios {
 
     @Y("el mensaje indica que el campo {string} es obligatorio")
     public void mensajeIndicaCampoObligatorio(String campo) {
-        assertThat(api.ultimaRespuesta().body())
-            .containsIgnoringCase(campo)
-            .containsIgnoringCase("obligatorio");
+        JsonNode detalles = api.ultimoJson().get("details");
+        assertThat(detalles).isNotNull();
+        assertThat(detalles).anySatisfy(detalle -> {
+            String texto = detalle.asString();
+            assertThat(texto).startsWith(campo + " ");
+            assertThat(texto).containsIgnoringCase("obligatorio");
+        });
     }
 
     @Cuando("intento eliminar el servicio {string} sin iniciar sesión")
@@ -431,9 +441,9 @@ public class PasosServicios {
         );
     }
 
-    @Cuando("creo dos servicios con el mismo nombre {string}")
-    public void creoDosServiciosConElMismoNombre(String nombre) {
-        Map<String, Object> cuerpo = Map.of(
+    @Cuando("creo dos servicios con nombres {string} y {string}")
+    public void creoDosServiciosConNombres(String nombre, String segundo) {
+        Map<String, Object> cuerpo = new HashMap<>(Map.of(
             "nombre",
             nombre,
             "descripcion",
@@ -442,9 +452,36 @@ public class PasosServicios {
             30,
             "recursoIds",
             List.of(recursoId)
+        ));
+        assertThat(api.postJson(RUTA_SERVICIOS, cuerpo).statusCode()).isEqualTo(201);
+        cuerpo.put("nombre", segundo);
+        api.postJson(RUTA_SERVICIOS, cuerpo);
+    }
+
+    @Cuando("creo simultáneamente dos servicios llamados {string}")
+    public void creoServiciosSimultaneos(String nombre) {
+        assertThat(api.iniciarSesion("segunda-sesion", emailProveedor, DatosPrueba.CONTRASENA_POR_DEFECTO)
+            .statusCode()).isEqualTo(200);
+        Map<String, Object> cuerpo = Map.of(
+            "nombre", nombre,
+            "descripcion", "Descripción de prueba",
+            "duracion", 30,
+            "recursoIds", List.of(recursoId)
         );
-        api.postJson(RUTA_SERVICIOS, cuerpo);
-        api.postJson(RUTA_SERVICIOS, cuerpo);
+        respuestasSimultaneas = api.postJsonSimultaneos(
+            RUTA_SERVICIOS, Map.of(sesionProveedor, cuerpo, "segunda-sesion", cuerpo)
+        );
+    }
+
+    @Entonces("una creación tiene éxito y la otra se rechaza por duplicado")
+    public void unaCreacionExitosaYOtraDuplicada() {
+        assertThat(respuestasSimultaneas).extracting(HttpResponse::statusCode)
+            .containsExactlyInAnyOrder(201, 409);
+        HttpResponse<String> conflicto = respuestasSimultaneas.stream()
+            .filter(respuesta -> respuesta.statusCode() == 409)
+            .findFirst().orElseThrow();
+        assertThat(api.json(conflicto).get("errorCode").asString())
+            .isEqualTo("DUPLICATE_SERVICE_NAME");
     }
 
     @Cuando("intento crear un servicio")
@@ -534,6 +571,21 @@ public class PasosServicios {
         assertThat(datos.contarServiciosDeUsuario(usuarioId)).isEqualTo(total);
     }
 
+    @Y("existen {int} servicios, {int} agendas y {int} asociaciones guardadas")
+    public void existenRegistrosDeServicio(int servicios, int agendas, int asociaciones) {
+        assertThat(datos.contarTodosLosServicios()).isEqualTo(servicios);
+        assertThat(datos.contarTodasLasAgendas()).isEqualTo(agendas);
+        assertThat(datos.contarTodasLasAsociaciones()).isEqualTo(asociaciones);
+    }
+
+    @Y("la base de datos rechaza otro servicio activo llamado {string}")
+    public void baseDeDatosRechazaDuplicado(String nombre) {
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+            () -> datos.crearServicioDeUsuario(usuarioId, nombre)
+        ).isInstanceOf(org.springframework.dao.DuplicateKeyException.class)
+            .hasStackTraceContaining("ux_servicio_proveedor_nombre_activo");
+    }
+
     @Y("el servicio {string} aparece en el catálogo para los usuarios")
     public void servicioApareceEnCatalogo(String nombre) {
         Integer servicioId = serviciosPorNombre.get(nombre);
@@ -545,10 +597,6 @@ public class PasosServicios {
 
     @Y("existen {int} servicios guardados")
     public void existenServiciosGuardados(int total) {
-        int idUsuario = -1;
-        if (usuarioId != null) {
-            idUsuario = usuarioId;
-        }
-        assertThat(datos.contarServiciosDeUsuario(idUsuario)).isEqualTo(total);
+        assertThat(datos.contarTodosLosServicios()).isEqualTo(total);
     }
 }

@@ -13,9 +13,9 @@ Característica: Consultar reportes de ocupación y uso
     Y el reporte muestra 1 reserva realizada
     Y el reporte muestra la ocupación del servicio "Corte" con 1 reserva
     Y el reporte muestra el uso del recurso "Silla 1" con 1 reserva
+    Y el reporte no incluye el mensaje de periodo vacío
 
   @positivo @P2
-  @pendiente
   Escenario: Periodo sin reservas
     Dado que no hay reservas registradas en el periodo consultado
     Cuando consulto el reporte de ese periodo
@@ -23,6 +23,25 @@ Característica: Consultar reportes de ocupación y uso
     Y el reporte muestra 0 reservas realizadas
     Y el reporte muestra los valores de ocupación y uso en cero
     Y el reporte indica que no hay reservas en el periodo seleccionado
+
+  @positivo @P2
+  Escenario: El periodo solo contiene reservas canceladas
+    Dado que solo hay reservas canceladas en el periodo consultado
+    Cuando consulto el reporte de ese periodo
+    Entonces la respuesta tiene el código HTTP 200
+    Y el reporte muestra 0 reservas realizadas
+    Y el reporte muestra los valores de ocupación y uso en cero
+    Y el reporte indica que no hay reservas en el periodo seleccionado
+
+  @positivo @P2
+  Escenario: Las reservas canceladas no se contabilizan junto con las demás
+    Dado que hay reservas activas, completadas y canceladas en el periodo consultado
+    Cuando consulto el reporte de ese periodo
+    Entonces la respuesta tiene el código HTTP 200
+    Y el reporte muestra 2 reservas realizadas
+    Y el reporte muestra la ocupación del servicio "Corte" con 2 reservas
+    Y el reporte muestra el uso del recurso "Silla 1" con 2 reservas
+    Y el reporte no incluye el mensaje de periodo vacío
 
   @excepcional @P2
   Escenario: Rango de fechas inválido
@@ -40,3 +59,4 @@ Característica: Consultar reportes de ocupación y uso
     Y el reporte muestra 1 reserva realizada
     Y el reporte solo incluye el servicio "Corte" con 1 reserva
     Y el reporte solo incluye el recurso "Silla 1" con 1 reserva
+    Y el reporte no incluye el mensaje de periodo vacío

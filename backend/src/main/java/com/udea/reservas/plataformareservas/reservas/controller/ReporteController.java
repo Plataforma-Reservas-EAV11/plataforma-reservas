@@ -25,6 +25,9 @@ public class ReporteController {
 
         try {
             ReporteOcupacionDTO reporte = reservaService.obtenerReporteOcupacion(fechaInicio, fechaFin);
+            if (reporte.getTotalReservas() == 0L) {
+                reporte.setMessage("No hay reservas en el periodo seleccionado.");
+            }
             return ResponseEntity.ok(reporte);
         } catch (IllegalArgumentException e) {
             // Manejamos la excepción que lanzaste en el servicio cuando la fecha de inicio es mayor

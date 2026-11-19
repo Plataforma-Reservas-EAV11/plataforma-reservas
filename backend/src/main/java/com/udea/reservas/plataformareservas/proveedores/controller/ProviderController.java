@@ -36,9 +36,13 @@ public class ProviderController {
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size
     ) {
+        ProviderPageResponse providers = serviceCatalogService.getProviders(page, size);
+        String message = providers.totalElements() == 0
+            ? "No hay proveedores disponibles."
+            : "Proveedores consultados correctamente.";
         return new ApiSuccessResponse<>(
-            "Proveedores consultados correctamente.",
-            serviceCatalogService.getProviders(page, size)
+            message,
+            providers
         );
     }
 

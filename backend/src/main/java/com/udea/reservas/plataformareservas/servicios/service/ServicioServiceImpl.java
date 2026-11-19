@@ -15,6 +15,8 @@ import com.udea.reservas.plataformareservas.servicios.model.Servicio;
 import com.udea.reservas.plataformareservas.servicios.repository.IServicioRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class ServicioServiceImpl implements ServicioService {
+
+    private static final String INDICE_NOMBRE_UNICO = "ux_servicio_proveedor_nombre_activo";
 
     private final IProveedorRepository proveedorRepository;
     private final IServicioRepository servicioRepository;
@@ -33,6 +37,9 @@ public class ServicioServiceImpl implements ServicioService {
     @Transactional
     public ServicioResponse crearServicio(Integer usuarioId, CrearServicioRequest request) {
         Proveedor proveedor = obtenerProveedor(usuarioId);
+        if (servicioRepository.existsNombreActivo(proveedor.getId(), request.nombre())) {
+            throw nombreDuplicado();
+        }
         List<Recurso> recursos = resolverRecursos(proveedor, request.recursoIds());
 
         Servicio servicio = Servicio.builder()
@@ -42,7 +49,15 @@ public class ServicioServiceImpl implements ServicioService {
             .duracionMinutos(request.duracion())
             .recursosCompatibles(recursos)
             .build();
-        Servicio guardado = servicioRepository.save(servicio);
+        Servicio guardado;
+        try {
+            guardado = servicioRepository.saveAndFlush(servicio);
+        } catch (DataIntegrityViolationException exception) {
+            if (!esNombreDuplicado(exception)) {
+                throw exception;
+            }
+            throw nombreDuplicado();
+        }
         Agenda agenda = agendaRepository.save(
             Agenda.builder()
                 .proveedor(proveedor)
@@ -62,6 +77,26 @@ public class ServicioServiceImpl implements ServicioService {
             guardado.getDescripcion(),
             guardado.getDuracionMinutos(),
             idsRecursos
+        );
+    }
+
+    private static boolean esNombreDuplicado(Throwable exception) {
+        Throwable actual = exception;
+        while (actual != null) {
+            if (actual instanceof ConstraintViolationException violation
+                && INDICE_NOMBRE_UNICO.equalsIgnoreCase(violation.getConstraintName())) {
+                return true;
+            }
+            actual = actual.getCause();
+        }
+        return false;
+    }
+
+    private static BusinessRuleException nombreDuplicado() {
+        return new BusinessRuleException(
+            "DUPLICATE_SERVICE_NAME",
+            "Ya existe un servicio con ese nombre para este proveedor.",
+            HttpStatus.CONFLICT.value()
         );
     }
 
