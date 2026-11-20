@@ -138,7 +138,6 @@ Característica: Crear mis servicios
     Y existen 0 servicios guardados
 
   @excepcional @P1
-  @pendiente
   Esquema del escenario: Rechazar campos obligatorios vacíos sin persistir
     Dado que existe el proveedor "Proveedor inválido" con correo "proveedor-invalido@test.com"
     Y que el proveedor tiene el recurso "Sala válida"
